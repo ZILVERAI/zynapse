@@ -1,11 +1,11 @@
 import { z } from "zod";
 
-export type ProcedureType = "MUTATION" | "QUERY";
+type ProcedureType = "MUTATION" | "QUERY";
 
 /**
  * Represents a single procedure.
  */
-export interface Procedure {
+interface Procedure {
 	// The name of the procdedure, must be unique and URI safe.
 	name: string;
 
@@ -22,17 +22,10 @@ export interface Procedure {
 	output: z.Schema;
 }
 
-// The next function used in the middleware when it is able to proceed.
-export type NextFunction = Function;
-
-export interface ResponseError {
-	Error(): string;
-}
-
 /**
  * Router, a container for multiple procedures. It can have a middleware which will run before each procedure.
  */
-export interface IService {
+interface IService {
 	procedures: Array<Procedure>;
 	middlewareDescription?: string; // A description of what should be the middleware responsability.
 	name: string;
