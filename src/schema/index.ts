@@ -5,7 +5,7 @@ type ProcedureType = "MUTATION" | "QUERY";
 /**
  * Represents a single procedure.
  */
-interface Procedure {
+export interface Procedure {
 	// The name of the procdedure, must be unique and URI safe.
 	name: string;
 
