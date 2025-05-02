@@ -3,7 +3,7 @@
   "module": "index.ts",
   "type": "module",
   "exports": {
-    "schema": "./src/schema/index.ts"
+    "./schema": "./src/schema/index.ts"
   },
   "bin": {
     "zynapse-cli": "./src/cli/index.ts"
