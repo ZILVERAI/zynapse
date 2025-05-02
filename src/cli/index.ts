@@ -29,13 +29,13 @@ console.log("Code gen started", process.cwd());
 // Find the file and dynamically import it
 
 const fullPath = path.join(process.cwd(), inputFile);
-const file = await import(fullPath);
+const file = (await import(fullPath)).default;
 
 // TODO: Add some sort of validation to make sure the mentioned file is actually a schema
 
 const buffer = await GenerateCode(file);
 
-const fHandle = Bun.file(path.join(process.cwd(), inputFile));
+const fHandle = Bun.file(path.join(process.cwd(), outputFile));
 
 const bytes = await fHandle.write(buffer);
 
