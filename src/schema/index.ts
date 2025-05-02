@@ -16,7 +16,7 @@ export interface Procedure {
 	method: ProcedureType;
 
 	// If the method requires an input.
-	input?: z.Schema;
+	input: z.Schema;
 
 	// The output of the endpoint
 	output: z.Schema;
