@@ -2,6 +2,9 @@
   "name": "zynapse",
   "module": "index.ts",
   "type": "module",
+  "bin": {
+    "zynapse": "src/cli/index.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
