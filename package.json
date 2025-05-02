@@ -3,7 +3,7 @@
   "module": "index.ts",
   "type": "module",
   "bin": {
-    "zynapse": "src/cli/index.ts"
+    "zynapse-cli": "./src/cli/index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
