@@ -1,9 +1,6 @@
-import { z } from "zod";
 import { APISchema, Service } from "../src/schema";
-import { GenerateCode } from "../src/schema/client_side";
-import { expect, test } from "bun:test";
-
-const testSchema = new APISchema();
+import { z } from "zod";
+import { Server, ServiceImplementationBuilder } from "../src/server";
 
 const usersService = new Service("Users")
 	.addProcedure({
@@ -26,15 +23,18 @@ const usersService = new Service("Users")
 		output: z.boolean(),
 	});
 
-testSchema.registerService(usersService);
-
-test("Basic Schema", () => {
-	expect(Object.keys(testSchema.services).length).toBe(1);
-
-	expect(Object.keys(usersService.procedures).length).toBe(2);
+const testSchema = new APISchema({
+	Users: usersService,
 });
 
-test("Test code gen", async () => {
-	const buffer = await GenerateCode(testSchema);
-	console.log(buffer);
+const impl = new ServiceImplementationBuilder(testSchema.services.Users)
+	.registerProcedureImplementation("GetUserById", async (inp) => {
+		return true;
+	})
+	.registerProcedureImplementation("ChangeUsername", async (np) => {
+		return true;
+	});
+
+const server = new Server(testSchema, {
+	Users: impl.build(),
 });

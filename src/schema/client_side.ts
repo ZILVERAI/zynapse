@@ -128,7 +128,7 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 
 async function GenerateServiceCode(service: Service) {
 	const serviceBuffers: Array<string> = [];
-	for (const proc of service.procedures) {
+	for (const [pName, proc] of Object.entries(service.procedures)) {
 		let procedureCode: string = "";
 		if (proc.method === "MUTATION") {
 			procedureCode = await mutationProcedureCodeGen(proc, service);
