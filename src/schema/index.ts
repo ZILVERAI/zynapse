@@ -95,7 +95,6 @@ export class Service<
 		>;
 	}
 
-	// Simple non-generic getProcedure
 	getProcedure<PName extends keyof TProcedures>(
 		name: PName,
 	): TProcedures[PName] {

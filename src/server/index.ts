@@ -1,24 +1,24 @@
 import { APISchema, Service, type Procedure } from "../schema";
 import { z } from "zod";
 
-export type ProcedureHandler<P extends Procedure<any, any>> = (
+type ProcedureHandler<P extends Procedure<any, any>> = (
 	args: z.infer<P["input"]>,
+	request: Request,
 ) => Promise<z.infer<P["output"]>>;
 
-export type ServiceImplementationHandlers<ServiceT extends Service> = {
-	[ProcName in keyof ServiceT["procedures"]]: ProcedureHandler<
-		ServiceT["procedures"][ProcName]
-	>;
-};
-
-export type FullImplementation<SchemaT extends APISchema> = {
+type FullImplementation<SchemaT extends APISchema> = {
 	[ServiceName in keyof SchemaT["services"]]: ServiceImplementationHandlers<
 		SchemaT["services"][ServiceName]
 	>;
 };
 
-export type MiddlewareFunction = (req: Request, res: Response) => Promise<void>;
+type MiddlewareFunction = (req: Request) => Promise<void>;
 
+type ServiceImplementationHandlers<ServiceT extends Service> = {
+	[ProcName in keyof ServiceT["procedures"]]: ProcedureHandler<
+		ServiceT["procedures"][ProcName]
+	>;
+};
 export class ServiceImplementationBuilder<ServiceT extends Service> {
 	middleware: MiddlewareFunction | undefined = undefined;
 	handlers: Partial<ServiceImplementationHandlers<ServiceT>> = {};
@@ -43,6 +43,14 @@ export class ServiceImplementationBuilder<ServiceT extends Service> {
 	}
 
 	build(): ServiceImplementationHandlers<ServiceT> {
+		if (
+			this.serviceSchema.middlewareDescription !== undefined &&
+			this.middleware === undefined
+		) {
+			throw new Error(
+				`A middleware for the service ${this.serviceSchema.name} is required but has not been implemented.`,
+			);
+		}
 		const requiredProcedureNames = Object.keys(this.serviceSchema.procedures);
 		const implementedProcedureNames = Object.keys(this.handlers);
 
@@ -87,15 +95,176 @@ export class ServiceImplementationBuilder<ServiceT extends Service> {
 			}
 		}
 
+		// If the original schema had a middleware description then there must be an implementation
+
 		return result;
 	}
 }
 
+const RequestBodySchema = z.object({
+	procedure: z.string({ message: "Procedure is not present in the body" }),
+	service: z.string({ message: "Service is not present in the body" }),
+	data: z.custom<Required<any>>((d) => d !== undefined && d !== null, {
+		message: "Data must be present",
+	}),
+});
+
 export class Server<SchemaT extends APISchema> {
 	schema: SchemaT;
 	implementation: FullImplementation<SchemaT>;
+	private _server: Bun.Server | undefined;
 	constructor(schema: SchemaT, implementation: FullImplementation<SchemaT>) {
 		this.schema = schema;
 		this.implementation = implementation;
+	}
+
+	private buildHandler(): Bun.RouterTypes.RouteHandler<string> {
+		return async (request: Request) => {
+			// Only open under _api, if not, then close the connection
+			const urlObject = new URL(request.url);
+			if (urlObject.pathname.split("/")[1] !== "_api") {
+				console.log(
+					"[ZYNAPSE] The base url of the requested resource is invalid.",
+				);
+				return new Response(null, {
+					status: 400,
+				});
+			}
+
+			// Parse the request body
+			try {
+				const body = await request.json();
+				const parsedBody = await RequestBodySchema.safeParseAsync(body);
+				if (parsedBody.success === false) {
+					return new Response(parsedBody.error.message, {
+						status: 400,
+					});
+				}
+
+				// Now, lets check if we have that procedure.
+				const serviceDefinition = this.schema.services[parsedBody.data.service];
+				const implementationHandler =
+					this.implementation[parsedBody.data.service];
+				if (
+					implementationHandler === undefined ||
+					serviceDefinition === undefined
+				) {
+					console.log("[ZYNAPSE] Service not found");
+					return new Response("Service not found", {
+						status: 404,
+					});
+				}
+
+				// Before proceding to the final execution, lets check if we have the procedure that the client is asking.
+				const procedureHandler =
+					implementationHandler[parsedBody.data.procedure];
+				const procedureDefinition = serviceDefinition.getProcedure(
+					parsedBody.data.procedure,
+				) as Procedure<z.Schema, z.Schema>;
+
+				if (
+					procedureHandler === undefined ||
+					procedureDefinition === undefined
+				) {
+					console.log("[ZYNAPSE Procedure not found]");
+					return new Response("Procedure not found", {
+						status: 404,
+					});
+				}
+
+				// Validate the procedure input
+				const parsedArgumentsResult =
+					await procedureDefinition.input.safeParseAsync(parsedBody.data.data);
+				if (parsedArgumentsResult.success === false) {
+					console.log("[ZYNAPSE] The input has failed the validation");
+					return new Response("Invalid input", {
+						status: 400,
+					});
+				}
+
+				// Now, run the middleware if it exists
+				if (implementationHandler.middleware !== undefined) {
+					console.log("[ZYNAPSE] Running middleware");
+					try {
+						await (implementationHandler.middleware as MiddlewareFunction)(
+							request,
+						);
+					} catch (e) {
+						console.log("[ZYNAPSE] Error on middleware", e);
+						return new Response(undefined, {
+							status: 500,
+						});
+					}
+				}
+
+				// And finally, run the procedure
+				try {
+					const output = await procedureHandler(
+						parsedArgumentsResult.data,
+						request,
+					);
+
+					return new Response(
+						JSON.stringify({
+							data: output,
+						}),
+						{
+							status: 200,
+						},
+					);
+				} catch (e) {
+					console.log("[ZYNAPSE] The handler threw an error");
+					return new Response("Function error", {
+						status: 500,
+					});
+				}
+			} catch (e) {
+				console.log("[ZYNAPSE] The body could not be parsed into JSON", e);
+				return new Response("Request cannot be parsed at the moment", {
+					status: 500,
+				});
+			}
+		};
+	}
+
+	start(port?: number) {
+		if (this._server !== undefined) {
+			throw new Error("Cannot start 2 instances of the same server");
+		}
+		const _port = port || 3000;
+
+		const handler = this.buildHandler();
+
+		this._server = Bun.serve({
+			port: _port,
+
+			routes: {
+				"/_api": handler,
+			},
+			async fetch() {
+				return new Response(null, {
+					status: 404,
+				});
+			},
+		});
+
+		const stopServer = async () => {
+			await this.stop();
+		};
+
+		process.on("SIGTERM", stopServer);
+		process.on("SIGINT", stopServer);
+
+		console.log(`[ZYNAPSE] Listening on ${_port}`);
+	}
+
+	async stop() {
+		if (this._server === undefined) {
+			console.log("[ZYNAPSE] Nothing to stop");
+			return;
+		}
+		await this._server.stop();
+		console.log("[ZYNAPSE] Server stopped");
+		return;
 	}
 }
