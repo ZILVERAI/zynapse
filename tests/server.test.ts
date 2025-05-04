@@ -1,8 +1,9 @@
 import { APISchema, Service } from "../src/schema";
 import { z } from "zod";
 import { Server, ServiceImplementationBuilder } from "../src/server";
+import { test, expect } from "bun:test";
 
-const usersService = new Service("Users")
+const usersService = new Service("Users", "asdasd")
 	.addProcedure({
 		method: "QUERY",
 		name: "GetUserById",
@@ -23,18 +24,45 @@ const usersService = new Service("Users")
 		output: z.boolean(),
 	});
 
+const testService = new Service("");
+
 const testSchema = new APISchema({
 	Users: usersService,
 });
 
-const impl = new ServiceImplementationBuilder(testSchema.services.Users)
-	.registerProcedureImplementation("GetUserById", async (inp) => {
-		return true;
-	})
-	.registerProcedureImplementation("ChangeUsername", async (np) => {
+test("A basic implementation works", () => {
+	const impl = new ServiceImplementationBuilder(testSchema.services.Users)
+		.registerProcedureImplementation("GetUserById", async (inp) => {
+			return true;
+		})
+		.registerProcedureImplementation("ChangeUsername", async (np) => {
+			return true;
+		});
+
+	const server = new Server(testSchema, {
+		Users: impl.build(),
+	});
+});
+
+test("An incomplete implementation fails", () => {
+	const impl = new ServiceImplementationBuilder(
+		testSchema.services.Users,
+	).registerProcedureImplementation("GetUserById", async (inp) => {
 		return true;
 	});
 
-const server = new Server(testSchema, {
-	Users: impl.build(),
+	expect(impl.build).toThrowError();
+});
+
+test("A complete implementation with a typo fails", () => {
+	const impl = new ServiceImplementationBuilder(testSchema.services.Users)
+		//@ts-expect-error
+		.registerProcedureImplementation("GetUserByID", async (inp) => {
+			return true;
+		})
+		.registerProcedureImplementation("ChangeUsername", async (np) => {
+			return true;
+		});
+
+	expect(impl.build).toThrowError();
 });

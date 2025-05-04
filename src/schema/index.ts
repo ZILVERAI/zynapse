@@ -77,12 +77,6 @@ export class Service<
 		} = {
 			// Spread the definition to copy properties, ensuring all are included
 			...procDefinition,
-			// Explicitly assign to ensure structure matches if needed, though spread is often sufficient
-			// name: procDefinition.name,
-			// description: procDefinition.description,
-			// method: procDefinition.method,
-			// input: procDefinition.input,
-			// output: procDefinition.output,
 		};
 
 		// Mutate the internal procedures map.

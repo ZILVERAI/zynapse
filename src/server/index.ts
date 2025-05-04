@@ -17,7 +17,7 @@ export type FullImplementation<SchemaT extends APISchema> = {
 	>;
 };
 
-export type MiddlewareFunction = (r: Request) => Promise<void>;
+export type MiddlewareFunction = (req: Request, res: Response) => Promise<void>;
 
 export class ServiceImplementationBuilder<ServiceT extends Service> {
 	middleware: MiddlewareFunction | undefined = undefined;
