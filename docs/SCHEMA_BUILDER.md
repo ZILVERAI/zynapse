@@ -51,12 +51,13 @@ const usersService = new Service("Users")
   });
 ```
 
-### Register the Service with an API Schema
+### Create an API Schema with Services
 
 ```typescript
-// Create the API schema and register the service
-const apiSchema = new APISchema()
-  .registerService(usersService);
+// Create the API schema with services
+const apiSchema = new APISchema({
+  Users: usersService
+});
 ```
 
 ### Services with Middleware
@@ -143,10 +144,11 @@ const contentService = new Service("Content")
 Organize your API by creating multiple services:
 
 ```typescript
-const apiSchema = new APISchema()
-  .registerService(usersService)
-  .registerService(contentService)
-  .registerService(authService);
+const apiSchema = new APISchema({
+  Users: usersService,
+  Content: contentService, 
+  Auth: authService
+});
 ```
 
 ## Complete Example
@@ -238,9 +240,10 @@ const todosService = new Service(
   });
 
 // Create the full API schema
-const apiSchema = new APISchema()
-  .registerService(authService)
-  .registerService(todosService);
+const apiSchema = new APISchema({
+  Auth: authService,
+  Todos: todosService
+});
 
 export { apiSchema };
 ```
@@ -402,9 +405,10 @@ import { APISchema, Service } from "zynapse/schema";
 import { z } from "zod";
 
 // Define your services and schema...
-const apiSchema = new APISchema()
-  .registerService(usersService)
-  .registerService(postsService);
+const apiSchema = new APISchema({
+  Users: usersService,
+  Posts: postsService
+});
 
 // IMPORTANT: Export as default
 export default apiSchema;

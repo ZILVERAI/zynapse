@@ -114,31 +114,4 @@ export class APISchema<
 	constructor(services: TServices = {} as TServices) {
 		this.services = services;
 	}
-
-	// Returns a *new* APISchema instance with the updated type signature
-	registerService<
-		SName extends string,
-		SInstance extends Service<any>, // Capture the specific Service type being added
-	>(
-		service: SInstance & { name: SName }, // Ensure the service instance has the correct literal name type
-	): APISchema<TServices & { [K in SName]: SInstance }> {
-		// Return type includes the specific service
-
-		if (service.name in this.services) {
-			console.warn(
-				`Service "${service.name}" is already registered and will be overwritten.`,
-			);
-		}
-
-		const newServices = {
-			...this.services,
-			[service.name]: service, // Add the service with its specific type
-		} as TServices & { [K in SName]: SInstance }; // Assert the combined type
-		this.services = newServices;
-
-		// Return a new APISchema instance holding the combined, typed services map
-		return this as unknown as APISchema<
-			TServices & { [K in SName]: SInstance }
-		>;
-	}
 }

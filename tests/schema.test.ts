@@ -3,8 +3,6 @@ import { APISchema, Service } from "../src/schema";
 import { GenerateCode } from "../src/schema/client_side";
 import { expect, test } from "bun:test";
 
-const testSchema = new APISchema();
-
 const usersService = new Service("Users")
 	.addProcedure({
 		method: "QUERY",
@@ -26,7 +24,9 @@ const usersService = new Service("Users")
 		output: z.boolean(),
 	});
 
-testSchema.registerService(usersService);
+const testSchema = new APISchema({
+	Users: usersService,
+});
 
 test("Basic Schema", () => {
 	expect(Object.keys(testSchema.services).length).toBe(1);
