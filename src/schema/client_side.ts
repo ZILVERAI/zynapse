@@ -43,7 +43,7 @@ return useMutation({
 			method: "POST",
 			body: JSON.stringify({
 					service: '${parentService.name}',
-					proc: '${proc.name}',
+					procedure: '${proc.name}',
 					data: args
 				}),
 		})
@@ -106,7 +106,7 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 				method: "POST",
 				body: JSON.stringify({
 					service: '${parentService.name}',
-					proc: '${proc.name}',
+					procedure: '${proc.name}',
 					${bodyData}
 				}),
 				})

@@ -37,6 +37,9 @@ test("A basic implementation works", () => {
 		})
 		.registerProcedureImplementation("ChangeUsername", async (np) => {
 			return true;
+		})
+		.setMiddleware(async (r) => {
+			// Test middleware
 		});
 
 	const server = new Server(testSchema, {
