@@ -43,14 +43,6 @@ export class ServiceImplementationBuilder<ServiceT extends Service> {
 	}
 
 	build(): ServiceImplementationHandlers<ServiceT> {
-		if (
-			this.serviceSchema.middlewareDescription !== undefined &&
-			this.middleware === undefined
-		) {
-			throw new Error(
-				`A middleware for the service ${this.serviceSchema.name} is required but has not been implemented.`,
-			);
-		}
 		const requiredProcedureNames = Object.keys(this.serviceSchema.procedures);
 		const implementedProcedureNames = Object.keys(this.handlers);
 
@@ -76,6 +68,14 @@ export class ServiceImplementationBuilder<ServiceT extends Service> {
 			);
 		}
 
+		if (
+			this.serviceSchema.middlewareDescription !== undefined &&
+			this.middleware === undefined
+		) {
+			throw new Error(
+				`A middleware for the service ${this.serviceSchema.name} is required but has not been implemented.`,
+			);
+		}
 		const finalHandlers = { ...this.handlers };
 
 		// Add middleware if defined

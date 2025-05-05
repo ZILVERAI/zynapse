@@ -47,8 +47,10 @@ const usersImplementation = new ServiceImplementationBuilder(apiSchema.services.
     };
   })
   // Implement other procedures in the Users service...
-  .build();
+  .build(); // IMPORTANT: Always call .build() to finalize the implementation
 ```
+
+> **REMINDER**: Always call the `.build()` method after registering all procedure implementations. The server requires the built implementation, not the builder.
 
 ### Step 4: Initialize and Start the Server
 
