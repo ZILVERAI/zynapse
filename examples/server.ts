@@ -31,11 +31,14 @@ const schema = new APISchema({
 const postsServiceImplementation = new ServiceImplementationBuilder(
 	postsService,
 	// All the handlers MUST always be an async function, it needs to return a promise
-).registerProcedureImplementation("GetUserPosts", async (input) => {
+).registerProcedureImplementation("GetUserPosts", async (input, request) => {
 	// By default the input is typesafe using the schema you defined before
 	// The actual implementation of the procedure goes here!.
 	console.log(`Getting the posts of the user ${input.userId}`);
 	// Some work here...
+
+	// And some cookies too!
+	request.cookies.set("my", "cookie");
 
 	// The output is also type safe, making the wrong implementation will also raise an error internally
 	return {

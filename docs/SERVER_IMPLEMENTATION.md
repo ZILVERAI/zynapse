@@ -150,6 +150,91 @@ const protectedServiceImplementation = new ServiceImplementationBuilder(apiSchem
   .build();
 ```
 
+## Modifying Cookies
+
+Zynapse allows you to modify response cookies directly within both middleware and procedure implementations using the Bun Request object.
+
+### Working with Cookies
+
+Both middleware and procedure handlers receive a `BunRequest` object that allows you to manipulate cookies:
+
+```typescript
+.setMiddleware(async (request) => {
+  // Check authentication
+  const userToken = request.headers.get("authorization")?.split(" ")[1];
+  
+  if (!userToken) {
+    throw new Error("No authentication token provided");
+  }
+  
+  // Validate the token
+  const user = await validateToken(userToken);
+  
+  // Set cookies that will be included in the response
+  request.cookies.set("user_id", user.id, {
+    httpOnly: true,
+    secure: true,
+    maxAge: 60 * 60 * 24, // 1 day in seconds
+    path: '/'
+  });
+});
+```
+
+### Modifying Cookies in Procedures
+
+The same approach works in procedure implementations:
+
+```typescript
+.registerProcedureImplementation("Login", async (input, request) => {
+  // Authenticate user
+  const user = await authenticateUser(input.email, input.password);
+  
+  // Generate a session token
+  const sessionToken = createSessionToken(user);
+  
+  // Set a cookie that will be included in the response
+  request.cookies.set("auth_token", sessionToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    maxAge: 60 * 60 * 24 * 7 // 7 days in seconds
+  });
+  
+  // Return the procedure's data output
+  return {
+    userId: user.id,
+    expiresAt: Date.now() + 86400000
+  };
+})
+```
+
+### Removing Cookies
+
+To remove a cookie, you can use the `delete` method or set it with immediate expiration:
+
+```typescript
+.registerProcedureImplementation("Logout", async (input, request) => {
+  // Method 1: Delete the cookie
+  request.cookies.delete("auth_token");
+  
+  // Method 2: Set with zero maxAge
+  request.cookies.set("auth_token", "", {
+    maxAge: 0,
+    path: '/'
+  });
+  
+  return { success: true };
+})
+```
+
+### Behavior in Middleware and Procedures
+
+When both middleware and procedures modify the same cookies:
+
+1. Changes from both sources are preserved
+2. If the same cookie is modified in both places, the procedure's changes take precedence
+3. All cookie modifications are automatically included in the final response
+
 ## Complete Example (Using schema from @/api.schema.ts)
 
 Here's a complete example showing how to implement all services in your schema:

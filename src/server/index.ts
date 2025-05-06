@@ -1,9 +1,10 @@
+import type { BunRequest } from "bun";
 import { APISchema, Service, type Procedure } from "../schema";
 import { z } from "zod";
 
 type ProcedureHandler<P extends Procedure<any, any>> = (
 	args: z.infer<P["input"]>,
-	request: Request,
+	request: BunRequest,
 ) => Promise<z.infer<P["output"]>>;
 
 type FullImplementation<SchemaT extends APISchema> = {
@@ -12,7 +13,7 @@ type FullImplementation<SchemaT extends APISchema> = {
 	>;
 };
 
-type MiddlewareFunction = (req: Request) => Promise<void>;
+type MiddlewareFunction = (req: BunRequest) => Promise<void>;
 
 type ServiceImplementationHandlers<ServiceT extends Service> = {
 	[ProcName in keyof ServiceT["procedures"]]: ProcedureHandler<
@@ -119,7 +120,7 @@ export class Server<SchemaT extends APISchema> {
 	}
 
 	private buildHandler(): Bun.RouterTypes.RouteHandler<string> {
-		return async (request: Request) => {
+		return async (request) => {
 			// Only open under _api, if not, then close the connection
 			const urlObject = new URL(request.url);
 			if (urlObject.pathname.split("/")[1] !== "_api") {
@@ -186,9 +187,9 @@ export class Server<SchemaT extends APISchema> {
 				if (implementationHandler.middleware !== undefined) {
 					console.log("[ZYNAPSE] Running middleware");
 					try {
-						await (implementationHandler.middleware as MiddlewareFunction)(
-							request,
-						);
+						await (
+							implementationHandler.middleware as unknown as MiddlewareFunction
+						)(request);
 					} catch (e) {
 						console.log("[ZYNAPSE] Error on middleware", e);
 						return new Response(undefined, {
