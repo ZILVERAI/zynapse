@@ -30,15 +30,18 @@ async function mutationProcedureCodeGen(
 		parentService,
 	);
 
-	let buff: string = `${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Mutation`;
+	const inputAliasIdentifier = `${parentService.name}${proc.name}InputType`;
+	const { node } = zodToTs(proc.input, inputAliasIdentifier);
+	const alias = createTypeAlias(node, inputAliasIdentifier);
+	const inputAliasStringified = printNode(alias);
 
-	const { node } = zodToTs(proc.input);
-	const stringifiedInputType = printNode(node);
+	let buff: string = `${stringifiedAlias}\n${inputAliasStringified}\nexport function use${parentService.name}${proc.name}Mutation`;
 
-	buff += `() {
+	buff += `(extraOptions?: Omit<UseMutationOptions<${outputTypeIdentifier}, unknown, ${inputAliasIdentifier}, unknown>, "mutationFn">) {
 /*${proc.description}*/
 return useMutation({
-	mutationFn: async (args: ${stringifiedInputType}) => {
+...extraOptions,
+	mutationFn: async (args: ${inputAliasIdentifier}) => {
 		const response = await fetch("/_api",{
 			method: "POST",
 			body: JSON.stringify({
@@ -72,15 +75,15 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 	);
 
 	let buff: string = `${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Query`;
+
+	const extraOptionsType = `Omit<UseQueryOptions<${outputTypeIdentifier}, unknown, ${outputTypeIdentifier}, Array<string>>, "queryKey" | "queryFn">`;
+
 	if (proc.input !== undefined) {
 		const { node } = zodToTs(proc.input);
 		const stringifiedNode = printNode(node);
 
-		buff += `(args: ${stringifiedNode})`;
-	} else {
-		buff += "()";
+		buff += `(args: ${stringifiedNode}, extraOptions?: ${extraOptionsType})`;
 	}
-
 	// Actual logic of the buffer here
 	buff += "{\n";
 	buff += `/*${proc.description}*/\n`;
@@ -117,7 +120,8 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 
 				const rawResponse = await response.json()
 				return rawResponse["data"] as ${outputTypeIdentifier}
-			}
+			},
+			...extraOptions
 		}
 	)`;
 
@@ -145,8 +149,27 @@ async function GenerateServiceCode(service: Service) {
 	return serviceBuffers;
 }
 
+function schemaHasMethod(schema: APISchema, method: Procedure["method"]) {
+	for (const [key, val] of Object.entries(schema.services)) {
+		for (const [, proc] of Object.entries(val.procedures)) {
+			if ((proc as Procedure).method === method) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 export async function GenerateCode(schema: APISchema) {
-	let finalBuffer: string = `${buffer}`;
+	let finalBuffer: string = ``;
+	if (schemaHasMethod(schema, "MUTATION")) {
+		finalBuffer += `import {useMutation, UseMutationOptions} from "@tanstack/react-query";\n`;
+	}
+	if (schemaHasMethod(schema, "QUERY")) {
+		finalBuffer += `import {useQuery, UseQueryOptions} from "@tanstack/react-query";\n`;
+	}
+	finalBuffer += "\n\n";
+
 	for (const [key, val] of Object.entries(schema.services)) {
 		const buffers = await GenerateServiceCode(val);
 		finalBuffer += `// ---- Service Name: ${val.name} ----\n`;
