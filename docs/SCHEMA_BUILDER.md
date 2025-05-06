@@ -62,36 +62,35 @@ const apiSchema = new APISchema({
 
 ### Services with Middleware
 
-The middleware description should be detailed and specific about cookie-based authentication/authorization requirements:
+The middleware description should be detailed and specific about cookie-based authentication/authorization requirements. You can set it using the `setMiddlewareDescription` method:
 
 ```typescript
-const authProtectedService = new Service(
-  "ProtectedResource",
-  "Requires 'auth_session' cookie with valid session token. Cookie must be httpOnly, secure, and SameSite=Strict. Session must contain 'userId' and 'role' data. Role must be 'admin' or 'editor' to access these procedures."
-).addProcedure({
-  method: "QUERY",
-  name: "GetSecretData",
-  description: "Get data that requires authentication. Responds with 401 if unauthorized or 403 if user lacks 'admin' role. No session refresh is performed.",
-  input: z.object({}),
-  output: z.object({
-    secretData: z.string()
-  })
-});
+// Creating a service and setting middleware description
+const authProtectedService = new Service("ProtectedResource")
+  .setMiddlewareDescription("Requires 'auth_session' cookie with valid session token. Cookie must be httpOnly, secure, and SameSite=Strict. Session must contain 'userId' and 'role' data. Role must be 'admin' or 'editor' to access these procedures.")
+  .addProcedure({
+    method: "QUERY",
+    name: "GetSecretData",
+    description: "Get data that requires authentication. Responds with 401 if unauthorized or 403 if user lacks 'admin' role. No session refresh is performed.",
+    input: z.object({}),
+    output: z.object({
+      secretData: z.string()
+    })
+  });
 
 // Using extended cookie information
-const userProfileService = new Service(
-  "UserProfile",
-  "Requires 'session_id' cookie with valid session. Session cookie must be present and unexpired (max 24h). Session is refreshed automatically if less than 1h remains, setting a new 'session_id' cookie in the response."
-).addProcedure({
-  method: "QUERY",
-  name: "GetMyProfile",
-  description: "Get current user profile based on session cookie. Returns 401 if no valid session found. If session is refreshed, a new cookie is set in the response.",
-  input: z.object({}),
-  output: z.object({
-    username: z.string(),
-    email: z.string().email()
-  })
-});
+const userProfileService = new Service("UserProfile")
+  .setMiddlewareDescription("Requires 'session_id' cookie with valid session. Session cookie must be present and unexpired (max 24h). Session is refreshed automatically if less than 1h remains, setting a new 'session_id' cookie in the response.")
+  .addProcedure({
+    method: "QUERY",
+    name: "GetMyProfile",
+    description: "Get current user profile based on session cookie. Returns 401 if no valid session found. If session is refreshed, a new cookie is set in the response.",
+    input: z.object({}),
+    output: z.object({
+      username: z.string(),
+      email: z.string().email()
+    })
+  });
 ```
 
 ## Advanced Usage
@@ -199,10 +198,8 @@ const authService = new Service("Auth")
   });
 
 // Todos service with detailed cookie authentication requirement
-const todosService = new Service(
-  "Todos", 
-  "Requires 'auth_session' cookie with valid session. Cookie must contain 'userId' which is used to scope todos to the authenticated user. Session must not be expired. If session expires in less than 6 hours, a refreshed 'auth_session' cookie is automatically set in the response."
-)
+const todosService = new Service("Todos")
+  .setMiddlewareDescription("Requires 'auth_session' cookie with valid session. Cookie must contain 'userId' which is used to scope todos to the authenticated user. Session must not be expired. If session expires in less than 6 hours, a refreshed 'auth_session' cookie is automatically set in the response.")
   .addProcedure({
     method: "QUERY",
     name: "GetAllTodos",

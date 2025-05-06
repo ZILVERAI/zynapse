@@ -42,10 +42,15 @@ export class Service<
 	middlewareDescription?: string | undefined;
 	name: string = "";
 	procedures: TProcedures;
-	constructor(name: string, middleware?: string) {
+	constructor(name: string) {
 		this.name = name;
-		this.middlewareDescription = middleware;
+
 		this.procedures = {} as TProcedures;
+	}
+
+	setMiddlewareDescription(middlewareDescription: string) {
+		this.middlewareDescription = middlewareDescription;
+		return this;
 	}
 
 	// Method to add a procedure - MUTATES the current instance

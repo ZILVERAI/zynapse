@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Server, ServiceImplementationBuilder } from "../src/server";
 import { test, expect } from "bun:test";
 
-const usersService = new Service("Users", "asdasd")
+const usersService = new Service("Users")
 	.addProcedure({
 		method: "QUERY",
 		name: "GetUserById",
