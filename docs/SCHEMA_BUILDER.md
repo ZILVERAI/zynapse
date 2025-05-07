@@ -368,6 +368,7 @@ Your schema is both documentation and validation all in one. The types you defin
 10. **Keep schemas focused** - Avoid creating "catch-all" services or generic procedures
 11. **Document input validation** - Use Zod's error messages to provide helpful validation feedback
 12. **Consider versioning** - Plan for API evolution with versioning strategies
+13. **Avoid using .omit() in schemas** - Never use Zod's .omit() function in schemas as it creates maintenance issues and reduces schema clarity
 
 By following these practices, you'll create a schema that serves as clear documentation, provides runtime validation, and enables full type safety throughout your application.
 
@@ -411,3 +412,21 @@ export default apiSchema;
 ```
 
 This export pattern is critical for proper integration with the Zynapse ecosystem and ensures compatibility with code generation tools and type inference features.
+
+## IMPORTANT: Schema Omit Directive
+
+**Never use Zod's .omit() function in any schema definitions:**
+
+```typescript
+// PROHIBITED: Using .omit()
+const userInputSchema = userSchema.omit({ id: true }); // DO NOT DO THIS
+
+// REQUIRED: Define schemas explicitly
+const userInputSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+  role: z.enum(["admin", "user", "guest"])
+}); // DO THIS INSTEAD
+```
+
+The use of .omit() creates maintenance issues, reduces schema clarity, and can lead to problems with code generation and type inference. Always define your schemas explicitly with all included fields.
