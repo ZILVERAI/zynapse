@@ -67,7 +67,7 @@ The middleware description should be detailed and specific about cookie-based au
 ```typescript
 // Creating a service and setting middleware description
 const authProtectedService = new Service("ProtectedResource")
-  .setMiddlewareDescription("Requires 'auth_session' cookie with valid session token. Cookie must be httpOnly, secure, and SameSite=Strict. Session must contain 'userId' and 'role' data. Role must be 'admin' or 'editor' to access these procedures.")
+  .setMiddlewareDescription("Requires 'auth_session' cookie with valid session token. Session must contain 'userId' and 'role' data. Role must be 'admin' or 'editor' to access these procedures.")
   .addProcedure({
     method: "QUERY",
     name: "GetSecretData",
@@ -385,8 +385,7 @@ By following these practices, you'll create a schema that serves as clear docume
 // 3. Document cookie handling behavior in the procedure description
 
 // Example middleware description:
-"Requires 'auth_session' cookie with valid session. Cookie must be httpOnly, 
-secure, and SameSite=Strict. If session expires in less than 6 hours, a 
+"Requires 'auth_session' cookie with valid session. If session expires in less than 6 hours, a 
 refreshed cookie is set in the response."
 ```
 
