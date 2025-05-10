@@ -35,7 +35,7 @@ async function mutationProcedureCodeGen(
 	const alias = createTypeAlias(node, inputAliasIdentifier);
 	const inputAliasStringified = printNode(alias);
 
-	let buff: string = `${stringifiedAlias}\n${inputAliasStringified}\nexport function use${parentService.name}${proc.name}Mutation`;
+	let buff: string = `export ${stringifiedAlias}\nexport ${inputAliasStringified}\nexport function use${parentService.name}${proc.name}Mutation`;
 
 	buff += `(extraOptions?: Omit<UseMutationOptions<${outputTypeIdentifier}, unknown, ${inputAliasIdentifier}, unknown>, "mutationFn">) {
 /*${proc.description}*/
@@ -74,7 +74,7 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 		parentService,
 	);
 
-	let buff: string = `${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Query`;
+	let buff: string = `export ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Query`;
 
 	const extraOptionsType = `Omit<UseQueryOptions<${outputTypeIdentifier}, unknown, ${outputTypeIdentifier}, Array<string>>, "queryKey" | "queryFn">`;
 
