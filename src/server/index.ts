@@ -242,7 +242,8 @@ export class Server<SchemaT extends APISchema> {
 			routes: {
 				"/_api": handler,
 			},
-			async fetch() {
+			async fetch(req) {
+				console.log(`[ZYNAPSE] Invalid request received. ${req.url}`);
 				return new Response(null, {
 					status: 404,
 				});
