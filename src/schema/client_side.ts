@@ -32,7 +32,7 @@ async function mutationProcedureCodeGen(
 		parentService,
 	);
 
-	const inputAliasIdentifier = `${parentService.name}${proc.name}InputType`;
+	const inputAliasIdentifier = `${parentService.name}${proc.name}InputSchema`;
 	const schema = ztj(proc.input, {
 		errorMessages: true,
 		markdownDescription: true,
@@ -44,7 +44,7 @@ async function mutationProcedureCodeGen(
 
 	let buff: string = `export ${stringifiedAlias}\nexport ${zodCode}\nexport function use${parentService.name}${proc.name}Mutation`;
 
-	buff += `(extraOptions?: Omit<UseMutationOptions<${outputTypeIdentifier}, unknown, ${inputAliasIdentifier}, unknown>, "mutationFn">) {
+	buff += `(extraOptions?: Omit<UseMutationOptions<${outputTypeIdentifier}, unknown, z.infer<typeof ${inputAliasIdentifier}>, unknown>, "mutationFn">) {
 /*${proc.description}*/
 return useMutation({
 ...extraOptions,
@@ -52,7 +52,7 @@ return useMutation({
 		const validationResult = await ${inputAliasIdentifier}.safeParseAsync(args)
 		if (validationResult.error) {
 			console.error("Error on validating mutation input ", validationResult.error)
-			throw new Error(validationResult.error)
+			throw new Error(validationResult.error.message)
 		}
 
 		
@@ -88,16 +88,21 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 		parentService,
 	);
 
-	let buff: string = `export ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Query`;
+	const inputIdentifier = `${parentService.name}${proc.name}QueryInputSchema`;
+	const schema = ztj(proc.input, {
+		errorMessages: true,
+		markdownDescription: true,
+	});
+	const jsonSchema = jtz(schema, {
+		withJsdocs: true,
+		name: inputIdentifier,
+	});
+
+	let buff: string = `export ${jsonSchema}\nexport ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Query`;
 
 	const extraOptionsType = `Omit<UseQueryOptions<${outputTypeIdentifier}, unknown, ${outputTypeIdentifier}, Array<string>>, "queryKey" | "queryFn">`;
 
-	if (proc.input !== undefined) {
-		const { node } = zodToTs(proc.input);
-		const stringifiedNode = printNode(node);
-
-		buff += `(args: ${stringifiedNode}, extraOptions?: ${extraOptionsType})`;
-	}
+	buff += `(args: z.infer<typeof ${inputIdentifier}>, extraOptions?: ${extraOptionsType})`;
 	// Actual logic of the buffer here
 	buff += "{\n";
 	buff += `/*${proc.description}*/\n`;
@@ -110,21 +115,25 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 	// }
 
 	// Request body including/not including data
-	let bodyData: string = "";
-	if (proc.input !== undefined) {
-		bodyData += "data: args";
-	}
 
 	// Append them in the body
 	// TODO: Currenty we don't support dynamic query keys because of this JSON stringify, please fix.
 	buff += `\treturn useQuery({queryKey: ${JSON.stringify(queryKeys)}, 
 		queryFn: async () => {
+			const validationResult = await ${inputIdentifier}.safeParseAsync(args)
+			if (validationResult.error) {
+				console.error("Error on input validation of ${proc.name}", validationResult.error)
+				throw new Error(validationResult.error.message)
+			}
+
+
+		
 			const response = await fetch('/_api', {
 				method: "POST",
 				body: JSON.stringify({
 					service: '${parentService.name}',
 					procedure: '${proc.name}',
-					${bodyData}
+					data: validationResult.data
 				}),
 				})
 
@@ -182,7 +191,7 @@ export async function GenerateCode(schema: APISchema) {
 	if (schemaHasMethod(schema, "QUERY")) {
 		finalBuffer += `import {useQuery, UseQueryOptions} from "@tanstack/react-query";\n`;
 	}
-	finalBuffer += "\n\n";
+	finalBuffer += 'import {z} from "zod"\n\n';
 
 	for (const [key, val] of Object.entries(schema.services)) {
 		const buffers = await GenerateServiceCode(val);
