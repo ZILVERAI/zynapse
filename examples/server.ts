@@ -34,28 +34,49 @@ const postsServiceImplementation = new ServiceImplementationBuilder(
 	postsService,
 	// All the handlers MUST always be an async function, it needs to return a promise
 )
-	.setMiddleware(async (r) => {
+	.setMiddleware(async (r, procedureName, ctx) => {
+		// The middleware is capable of accessing the name of the procedure being called in the request.
+		console.log(`Intercepted ${procedureName} call!`);
+		// It is capable of accesing the request, being able to set cookies.
 		r.cookies.set("asd", "asd", {});
+		// An extra argument is being passed, the context argument, this is an accessible and modifiable Map object that the middleware can use to send information to the
+		// downstream procedures!
+		ctx.set("key", "value");
+		ctx.set(
+			"message",
+			"All this information will be accessible on the downstream procedures!",
+		);
+		ctx.set("key", "newvalue"); // Since the object under the hood is a map, this operation would update the original value
 	})
-	.registerProcedureImplementation("GetUserPosts", async (input, request) => {
-		// By default the input is typesafe using the schema you defined before
-		// The actual implementation of the procedure goes here!.
-		console.log(`Getting the posts of the user ${input.userId}`);
-		// Some work here...
+	.registerProcedureImplementation(
+		"GetUserPosts",
+		async (input, request, ctx) => {
+			// By default the input is typesafe using the schema you defined before
+			// The actual implementation of the procedure goes here!.
+			console.log(`Getting the posts of the user ${input.userId}`);
+			// Some work here...
 
-		// And some cookies too!
-		request.cookies.set("my", "cookie");
+			// And some cookies too!
+			request.cookies.set("my", "cookie");
 
-		// The output is also type safe, making the wrong implementation will also raise an error internally
-		return {
-			posts: [
-				{
-					creationDate: new Date(),
-					title: "Cool world",
-				},
-			],
-		};
-	});
+			// The capacity of being able to read the context is also possible!
+			ctx.has("key"); // Result: true
+			ctx.has("message"); // Result: true
+			ctx.has("random"); // Result: false
+
+			console.log("Value of key:", ctx.get("key")); // Result: 'newvalue'
+
+			// The output is also type safe, making the wrong implementation will also raise an error internally
+			return {
+				posts: [
+					{
+						creationDate: new Date(),
+						title: "Cool world",
+					},
+				],
+			};
+		},
+	);
 
 // The server intakes both the full API schema and the implementation we do.
 const server = new Server(schema, {

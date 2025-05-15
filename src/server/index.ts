@@ -2,9 +2,12 @@ import type { BunRequest } from "bun";
 import { APISchema, Service, type Procedure } from "../schema";
 import { z } from "zod";
 
+type ContextType = Map<string, any>;
+
 type ProcedureHandler<P extends Procedure<any, any>> = (
 	args: z.infer<P["input"]>,
 	request: BunRequest,
+	context: ContextType, // Information that the middleware is capable of passing to the handler.
 ) => Promise<z.infer<P["output"]>>;
 
 type FullImplementation<SchemaT extends APISchema> = {
@@ -13,13 +16,18 @@ type FullImplementation<SchemaT extends APISchema> = {
 	>;
 };
 
-type MiddlewareFunction = (req: BunRequest) => Promise<void>;
+type MiddlewareFunction = (
+	req: BunRequest,
+	procedureName: string, // The procedure name being executed.
+	context: ContextType, // The middleware can modify this context so that downstream handlers can read the information.
+) => Promise<void>;
 
 type ServiceImplementationHandlers<ServiceT extends Service> = {
 	[ProcName in keyof ServiceT["procedures"]]: ProcedureHandler<
 		ServiceT["procedures"][ProcName]
 	>;
 };
+
 export class ServiceImplementationBuilder<ServiceT extends Service> {
 	middleware: MiddlewareFunction | undefined = undefined;
 	handlers: Partial<ServiceImplementationHandlers<ServiceT>> = {};
@@ -183,13 +191,15 @@ export class Server<SchemaT extends APISchema> {
 					});
 				}
 
+				const ctx: ContextType = new Map();
+
 				// Now, run the middleware if it exists
 				if (implementationHandler.middleware !== undefined) {
 					console.log("[ZYNAPSE] Running middleware");
 					try {
 						await (
 							implementationHandler.middleware as unknown as MiddlewareFunction
-						)(request);
+						)(request, procedureDefinition.name, ctx);
 					} catch (e) {
 						console.log("[ZYNAPSE] Error on middleware", e);
 						return new Response(undefined, {
@@ -203,6 +213,7 @@ export class Server<SchemaT extends APISchema> {
 					const output = await procedureHandler(
 						parsedArgumentsResult.data,
 						request,
+						ctx,
 					);
 
 					return new Response(

@@ -85,19 +85,24 @@ Procedure handlers are fully type-safe based on the schema definition in `@/api.
 })
 ```
 
-### Access to Request Object
+### Access to Request and Context Objects
 
-All procedure handlers receive the original HTTP Request as the second parameter:
+All procedure handlers receive the original HTTP Request as the second parameter and the context as the third parameter:
 
 ```typescript
-.registerProcedureImplementation("GetUserById", async (input, request) => {
+.registerProcedureImplementation("GetUserById", async (input, request, context) => {
   // Access request properties
   const cookies = request.headers.get("cookie");
   const userAgent = request.headers.get("user-agent");
   
+  // Access context data set by middleware
+  const currentUser = context.get("user");
+  
   // Implementation logic...
 })
 ```
+
+The context object is passed from middleware to procedure handlers, allowing you to share data between them.
 
 ### Error Handling
 
@@ -132,7 +137,10 @@ If the schema in `@/api.schema.ts` includes services with middleware description
 // For a service with a middleware description in the schema
 const protectedServiceImplementation = new ServiceImplementationBuilder(apiSchema.services.ProtectedResource)
   // Define middleware that runs before each procedure in this service
-  .setMiddleware(async (request) => {
+  .setMiddleware(async (request, procedureName, context) => {
+    // The middleware receives information about which procedure is being called
+    console.log(`Procedure being called: ${procedureName}`);
+    
     // Check authentication
     const authCookie = request.headers.get("cookie");
     if (!authCookie?.includes("auth_session=")) {
@@ -145,10 +153,55 @@ const protectedServiceImplementation = new ServiceImplementationBuilder(apiSchem
     if (!session) {
       throw new Error("Invalid session");
     }
+    
+    // You can add data to the context for use in the procedure handler
+    // The context is a Map that can be used to pass data to procedures
+    context.set("user", session.user);
   })
   // Implement all procedures...
   .build();
 ```
+
+### Understanding Middleware Parameters
+
+The middleware function receives three parameters:
+
+1. `request`: The HTTP request object from Bun
+2. `procedureName`: A string indicating which procedure is being called
+3. `context`: A Map object that can be used to share data with the procedure handler
+
+### Using the Context Object
+
+The context object is a Map that allows middleware to pass data to procedure handlers:
+
+```typescript
+// In middleware
+.setMiddleware(async (request, procedureName, context) => {
+  // Add user data to context
+  context.set("user", { id: '123', role: 'admin' });
+  
+  // You can conditionally execute logic based on the procedure
+  if (procedureName === "DeleteAccount") {
+    // Apply stricter validation for sensitive operations
+    context.set("requiresReauth", true);
+  }
+})
+
+// In procedure implementation
+.registerProcedureImplementation("UpdateSettings", async (input, request, context) => {
+  // Access the user data set by middleware
+  const user = context.get("user");
+  
+  // Use the context data in your implementation
+  if (user.role !== 'admin') {
+    throw new Error('Insufficient permissions');
+  }
+  
+  return { success: true };
+})
+```
+
+The context persists only for the lifetime of the request, ensuring data isolation between different requests.
 
 ## Modifying Cookies
 
@@ -246,8 +299,12 @@ import { db } from "./database";
 
 // Implement the Posts service
 const postsServiceImplementation = new ServiceImplementationBuilder(apiSchema.services.Posts)
-  .registerProcedureImplementation("GetUserPosts", async (input, request) => {
+  .registerProcedureImplementation("GetUserPosts", async (input, request, context) => {
     console.log(`Getting posts for user ${input.userId}`);
+    
+    // Access user data from context if it was set by middleware
+    const currentUser = context.get("user");
+    console.log(`Request made by user: ${currentUser?.id}`);
     
     // Fetch posts from database
     const posts = await db.posts.findByUserId(input.userId);
