@@ -3,6 +3,8 @@ import { APISchema, Service } from ".";
 import type { Procedure } from ".";
 import { zodToTs, printNode, createTypeAlias } from "zod-to-ts";
 import * as prettier from "prettier";
+import ztj from "zod-to-json-schema";
+import jtz from "json-schema-to-zod";
 
 const buffer: string = `
 import * as React from "react"
@@ -31,23 +33,35 @@ async function mutationProcedureCodeGen(
 	);
 
 	const inputAliasIdentifier = `${parentService.name}${proc.name}InputType`;
-	const { node } = zodToTs(proc.input, inputAliasIdentifier);
-	const alias = createTypeAlias(node, inputAliasIdentifier);
-	const inputAliasStringified = printNode(alias);
+	const schema = ztj(proc.input, {
+		errorMessages: true,
+		markdownDescription: true,
+	});
+	const zodCode = jtz(schema, {
+		withJsdocs: true,
+		name: inputAliasIdentifier,
+	});
 
-	let buff: string = `export ${stringifiedAlias}\nexport ${inputAliasStringified}\nexport function use${parentService.name}${proc.name}Mutation`;
+	let buff: string = `export ${stringifiedAlias}\nexport ${zodCode}\nexport function use${parentService.name}${proc.name}Mutation`;
 
 	buff += `(extraOptions?: Omit<UseMutationOptions<${outputTypeIdentifier}, unknown, ${inputAliasIdentifier}, unknown>, "mutationFn">) {
 /*${proc.description}*/
 return useMutation({
 ...extraOptions,
-	mutationFn: async (args: ${inputAliasIdentifier}) => {
+	mutationFn: async (args: z.infer<typeof ${inputAliasIdentifier}>) => {
+		const validationResult = await ${inputAliasIdentifier}.safeParseAsync(args)
+		if (validationResult.error) {
+			console.error("Error on validating mutation input ", validationResult.error)
+			throw new Error(validationResult.error)
+		}
+
+		
 		const response = await fetch("/_api",{
 			method: "POST",
 			body: JSON.stringify({
 					service: '${parentService.name}',
 					procedure: '${proc.name}',
-					data: args
+					data: validationResult.data
 				}),
 		})
 

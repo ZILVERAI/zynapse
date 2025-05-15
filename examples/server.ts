@@ -34,7 +34,9 @@ const postsServiceImplementation = new ServiceImplementationBuilder(
 	postsService,
 	// All the handlers MUST always be an async function, it needs to return a promise
 )
-	.setMiddleware(async () => {})
+	.setMiddleware(async (r) => {
+		r.cookies.set("asd", "asd", {});
+	})
 	.registerProcedureImplementation("GetUserPosts", async (input, request) => {
 		// By default the input is typesafe using the schema you defined before
 		// The actual implementation of the procedure goes here!.

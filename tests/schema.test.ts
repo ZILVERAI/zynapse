@@ -28,6 +28,14 @@ const testSchema = new APISchema({
 	Users: usersService,
 });
 
+const x = z.object({
+	a: z.boolean(),
+});
+
+const r = await x.safeParseAsync({
+	a: true,
+});
+
 test("Basic Schema", () => {
 	expect(Object.keys(testSchema.services).length).toBe(1);
 
