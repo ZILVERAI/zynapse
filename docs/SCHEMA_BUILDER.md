@@ -64,8 +64,19 @@ const apiSchema = new APISchema({
 
 The middleware description should be detailed and specific about cookie-based authentication/authorization requirements. You can set it using the `setMiddlewareDescription` method:
 
+> **⚠️ CRITICAL: Middleware Decision**  
+> Implementing middleware on a service is a significant architectural decision with wide-ranging impacts. Before using middleware:
+> 
+> - Carefully evaluate if the authentication/authorization requirements truly apply to ALL procedures in the service
+> - Consider the performance implications of your middleware implementation
+> - Document precisely how middleware affects request/response flow
+> - Ensure middleware behavior is consistent and predictable across all procedures it applies to
+> - Avoid middleware that performs complex business logic that would be better suited to individual procedures
+
 ```typescript
 // Creating a service and setting middleware description
+// COMMENT: This middleware enforces role-based authentication across all endpoints in this service.
+// Use this pattern when you have a group of procedures that all require the same authorization checks.
 const authProtectedService = new Service("ProtectedResource")
   .setMiddlewareDescription("Requires 'auth_session' cookie with valid session token. Session must contain 'userId' and 'role' data. Role must be 'admin' or 'editor' to access these procedures.")
   .addProcedure({
@@ -79,6 +90,8 @@ const authProtectedService = new Service("ProtectedResource")
   });
 
 // Using extended cookie information
+// COMMENT: This service handles user profile data and requires session-based authentication.
+// The middleware ensures all endpoints verify the session and handle refreshing as needed.
 const userProfileService = new Service("UserProfile")
   .setMiddlewareDescription("Requires 'session_id' cookie with valid session. Session cookie must be present and unexpired (max 24h). Session is refreshed automatically if less than 1h remains, setting a new 'session_id' cookie in the response.")
   .addProcedure({
@@ -117,11 +130,15 @@ const postSchema = z.object({
 });
 
 // Use in procedures
+// COMMENT: Content service handles all blog post related operations.
+// This service intentionally has no middleware to allow public access to blog content.
 const contentService = new Service("Content")
   .addProcedure({
     method: "QUERY",
     name: "GetPostsWithAuthor",
     description: "Get posts with author details",
+    // COMMENT: This endpoint supports pagination and optional filtering by author.
+    // Use for displaying blog post listings with complete author information.
     input: z.object({
       limit: z.number().positive().default(10),
       offset: z.number().nonnegative().default(0),
@@ -369,6 +386,19 @@ Your schema is both documentation and validation all in one. The types you defin
 11. **Document input validation** - Use Zod's error messages to provide helpful validation feedback
 12. **Consider versioning** - Plan for API evolution with versioning strategies
 13. **Avoid using .omit() in schemas** - Never use Zod's .omit() function in schemas as it creates maintenance issues and reduces schema clarity
+14. **Add schema usage documentation comments** - Include code comments that explain how to use each service/procedure when creating schemas:
+    ```typescript
+    // COMMENT: This service manages user authentication flow.
+    // Use for login/logout and session management, not for user data operations.
+    const authService = new Service("Auth")
+      .addProcedure({...});
+    
+    // COMMENT: Each procedure should include usage documentation:
+    // - When to use this endpoint
+    // - Common integration patterns
+    // - Important limitations or edge cases
+    ```
+15. **Carefully consider middleware use** - Only apply middleware when the same exact behavior is needed for all procedures in a service. Document middleware thoroughly and consider procedure-specific validation as an alternative.
 
 By following these practices, you'll create a schema that serves as clear documentation, provides runtime validation, and enables full type safety throughout your application.
 
