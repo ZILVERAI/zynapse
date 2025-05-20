@@ -44,7 +44,7 @@ async function mutationProcedureCodeGen(
 
 	let buff: string = `export ${stringifiedAlias}\nexport ${zodCode}\nexport function use${parentService.name}${proc.name}Mutation`;
 
-	buff += `(extraOptions?: Omit<UseMutationOptions<${outputTypeIdentifier}, unknown, z.infer<typeof ${inputAliasIdentifier}>, unknown>, "mutationFn">) {
+	buff += `(extraOptions?: Omit<UseMutationOptions<${outputTypeIdentifier}, Error, z.infer<typeof ${inputAliasIdentifier}>, unknown>, "mutationFn">) {
 /*${proc.description}*/
 return useMutation({
 ...extraOptions,
@@ -100,7 +100,7 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 
 	let buff: string = `export ${jsonSchema}\nexport ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Query`;
 
-	const extraOptionsType = `Omit<UseQueryOptions<${outputTypeIdentifier}, unknown, ${outputTypeIdentifier}, Array<string>>, "queryKey" | "queryFn">`;
+	const extraOptionsType = `Omit<UseQueryOptions<${outputTypeIdentifier}, Error, ${outputTypeIdentifier}, Array<string>>, "queryKey" | "queryFn">`;
 
 	buff += `(args: z.infer<typeof ${inputIdentifier}>, extraOptions?: ${extraOptionsType})`;
 	// Actual logic of the buffer here
