@@ -71,7 +71,7 @@ return useMutation({
 
 		const rawResponse = await response.json()
 
-		return rawResponse as ${outputTypeIdentifier}
+		return rawResponse["data"] as ${outputTypeIdentifier}
 	}
 })
 		
