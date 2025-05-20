@@ -92,7 +92,7 @@ All procedure handlers receive the original HTTP Request as the second parameter
 ```typescript
 .registerProcedureImplementation("GetUserById", async (input, request, context) => {
   // Access request properties
-  const cookies = request.headers.get("cookie");
+  const cookies = request.cookies; // Direct access to cookies
   const userAgent = request.headers.get("user-agent");
   
   // Access context data set by middleware
@@ -131,9 +131,13 @@ Throw errors within your procedure handlers to indicate failures:
 
 ## Implementing Middleware
 
-If the schema in `@/api.schema.ts` includes services with middleware descriptions, you must implement the middleware:
+If the schema in `@/api.schema.ts` includes services with middleware descriptions, you must implement the middleware. Zynapse provides a `MiddlewareFunction` type for type-safe middleware implementations.
+
+### Method 1: Inline Middleware Implementation
 
 ```typescript
+import { ServiceImplementationBuilder } from "zynapse/server";
+
 // For a service with a middleware description in the schema
 const protectedServiceImplementation = new ServiceImplementationBuilder(apiSchema.services.ProtectedResource)
   // Define middleware that runs before each procedure in this service
@@ -142,13 +146,12 @@ const protectedServiceImplementation = new ServiceImplementationBuilder(apiSchem
     console.log(`Procedure being called: ${procedureName}`);
     
     // Check authentication
-    const authCookie = request.headers.get("cookie");
-    if (!authCookie?.includes("auth_session=")) {
+    if (!request.cookies.get("auth_session")) {
       throw new Error("Unauthorized");
     }
 
     // Validate session
-    const sessionToken = extractSessionToken(authCookie);
+    const sessionToken = request.cookies.get("auth_session");
     const session = await validateSession(sessionToken);
     if (!session) {
       throw new Error("Invalid session");
@@ -162,6 +165,35 @@ const protectedServiceImplementation = new ServiceImplementationBuilder(apiSchem
   .build();
 ```
 
+### Method 2: Using the MiddlewareFunction Type
+
+You can also define your middleware separately with proper typing:
+
+```typescript
+import { MiddlewareFunction, ServiceImplementationBuilder } from "zynapse/server";
+
+// Create a type-safe middleware function
+const authMiddleware: MiddlewareFunction = async (request, procedureName, context) => {
+  // Middleware implementation
+  console.log(`Procedure being called: ${procedureName}`);
+  
+  if (!request.cookies.get("auth_session")) {
+    throw new Error("Unauthorized");
+  }
+  
+  // Process authentication and set context data
+  const user = await validateUser(request.cookies);
+  context.set("user", user);
+};
+
+// For a service with a middleware description in the schema
+const protectedServiceImplementation = new ServiceImplementationBuilder(apiSchema.services.ProtectedResource)
+  // Use the separately defined middleware
+  .setMiddleware(authMiddleware)
+  // Implement all procedures...
+  .build();
+```
+
 ### Understanding Middleware Parameters
 
 The middleware function receives three parameters:
@@ -169,6 +201,23 @@ The middleware function receives three parameters:
 1. `request`: The HTTP request object from Bun
 2. `procedureName`: A string indicating which procedure is being called
 3. `context`: A Map object that can be used to share data with the procedure handler
+
+For proper type safety, you can import the `MiddlewareFunction` type from Zynapse:
+
+```typescript
+import { MiddlewareFunction } from "zynapse/server";
+
+// Type-safe middleware implementation
+const myMiddleware: MiddlewareFunction = async (request, procedureName, context) => {
+  // Middleware implementation
+  if (!request.cookies.get("auth_token")) {
+    throw new Error("Authentication required");
+  }
+  
+  // Add data to context for procedure handlers
+  context.set("userId", "123");
+};
+```
 
 ### Using the Context Object
 
@@ -323,9 +372,8 @@ const postsServiceImplementation = new ServiceImplementationBuilder(apiSchema.se
 const authServiceImplementation = new ServiceImplementationBuilder(apiSchema.services.Auth)
   .setMiddleware(async (request) => {
     // Auth middleware implementation
-    const sessionCookie = request.headers.get("cookie");
-    if (!sessionCookie) {
-      throw new Error("No session cookie found");
+    if (Object.keys(request.cookies).length === 0) {
+      throw new Error("No cookies found");
     }
     // Additional auth logic...
   })

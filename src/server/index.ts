@@ -16,7 +16,7 @@ type FullImplementation<SchemaT extends APISchema> = {
 	>;
 };
 
-type MiddlewareFunction = (
+export type MiddlewareFunction = (
 	req: BunRequest,
 	procedureName: string, // The procedure name being executed.
 	context: ContextType, // The middleware can modify this context so that downstream handlers can read the information.
