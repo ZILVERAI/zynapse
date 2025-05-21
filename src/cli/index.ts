@@ -33,10 +33,20 @@ const file = (await import(fullPath)).default;
 
 // TODO: Add some sort of validation to make sure the mentioned file is actually a schema
 
-const buffer = await GenerateCode(file);
+const services_buffers = await GenerateCode(file);
 
-const fHandle = Bun.file(path.join(process.cwd(), outputFile));
+let total_bytes = 0;
+for (const service_buf of services_buffers) {
+	const full_filename = path.join(
+		process.cwd(),
+		outputFile,
+		service_buf.filename,
+	);
+	const fHandle = Bun.file(full_filename);
 
-const bytes = await fHandle.write(buffer);
+	const bytes = await fHandle.write(service_buf.code);
+	console.log(`${bytes} written to ${full_filename}`);
+	total_bytes += bytes;
+}
 
-console.log(`${bytes} bytes has been written to file!`);
+console.log(`${total_bytes} total bytes written`);

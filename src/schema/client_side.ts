@@ -172,33 +172,46 @@ async function GenerateServiceCode(service: Service) {
 	return serviceBuffers;
 }
 
-function schemaHasMethod(schema: APISchema, method: Procedure["method"]) {
-	for (const [key, val] of Object.entries(schema.services)) {
-		for (const [, proc] of Object.entries(val.procedures)) {
-			if ((proc as Procedure).method === method) {
-				return true;
-			}
+function serviceHasMethod(service: Service, method: Procedure["method"]) {
+	for (const [, proc] of Object.entries(service.procedures)) {
+		if ((proc as Procedure).method === method) {
+			return true;
 		}
 	}
 	return false;
 }
 
-export async function GenerateCode(schema: APISchema) {
-	let finalBuffer: string = ``;
-	if (schemaHasMethod(schema, "MUTATION")) {
-		finalBuffer += `import {useMutation, UseMutationOptions} from "@tanstack/react-query";\n`;
-	}
-	if (schemaHasMethod(schema, "QUERY")) {
-		finalBuffer += `import {useQuery, UseQueryOptions} from "@tanstack/react-query";\n`;
-	}
-	finalBuffer += 'import {z} from "zod"\n\n';
+type ServiceCode = { filename: string; code: string };
+async function getServiceCode(
+	service: Service,
+	code: string,
+): Promise<ServiceCode> {
+	const prettified = await prettier.format(code, { parser: "babel-ts" });
+	return {
+		filename: service.name.toLowerCase() + ".service.ts",
+		code: code,
+	};
+}
+type SchemaCodes = Array<ServiceCode>;
 
-	for (const [key, val] of Object.entries(schema.services)) {
-		const buffers = await GenerateServiceCode(val);
-		finalBuffer += `// ---- Service Name: ${val.name} ----\n`;
+export async function GenerateCode(schema: APISchema): Promise<SchemaCodes> {
+	const out: SchemaCodes = [];
+
+	for (const [key, service] of Object.entries(schema.services)) {
+		let finalBuffer: string = ``;
+		if (serviceHasMethod(service, "MUTATION")) {
+			finalBuffer += `import {useMutation, UseMutationOptions} from "@tanstack/react-query";\n`;
+		}
+		if (serviceHasMethod(service, "QUERY")) {
+			finalBuffer += `import {useQuery, UseQueryOptions} from "@tanstack/react-query";\n`;
+		}
+		finalBuffer += 'import {z} from "zod"\n\n';
+		const buffers = await GenerateServiceCode(service);
+		finalBuffer += `// ---- Service Name: ${service.name} ----\n`;
 		finalBuffer += buffers.join("\n");
 		finalBuffer += "//----";
+		out.push(await getServiceCode(service, finalBuffer));
 	}
 
-	return await prettier.format(finalBuffer, { parser: "babel-ts" });
+	return out;
 }
