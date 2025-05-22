@@ -3,9 +3,10 @@
 import path from "path";
 import { parseArgs } from "util";
 import { GenerateCode } from "../schema/client_side";
+import { existsSync, readFile } from "fs";
 
 const {
-	values: { inputFile, outputFile },
+	values: { inputFile, outputFolder },
 } = parseArgs({
 	args: Bun.argv || process.argv,
 	allowPositionals: true,
@@ -14,14 +15,14 @@ const {
 			type: "string",
 			short: "I",
 		},
-		outputFile: {
+		outputFolder: {
 			type: "string",
 			short: "O",
 		},
 	},
 });
 
-if (!inputFile || !outputFile) {
+if (!inputFile || !outputFolder) {
 	throw new Error("One or more arguments are missing");
 }
 
@@ -39,7 +40,7 @@ let total_bytes = 0;
 for (const service_buf of services_buffers) {
 	const full_filename = path.join(
 		process.cwd(),
-		outputFile,
+		outputFolder,
 		service_buf.filename,
 	);
 	const fHandle = Bun.file(full_filename);
