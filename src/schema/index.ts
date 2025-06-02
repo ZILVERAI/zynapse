@@ -1,11 +1,12 @@
 import { z } from "zod";
 
-type ProcedureType = "MUTATION" | "QUERY";
+export type ProcedureType = `MUTATION` | `QUERY` | `SUBSCRIPTION`;
 
 /**
  * Represents a single procedure.
  */
 export interface Procedure<
+	TMethod extends ProcedureType = ProcedureType,
 	TInput extends z.Schema = z.AnyZodObject,
 	TOuput extends z.Schema = z.AnyZodObject,
 > {
@@ -16,7 +17,7 @@ export interface Procedure<
 	description: string;
 
 	// The method to be used for the procedure
-	method: ProcedureType;
+	method: TMethod;
 
 	// If the method requires an input.
 	input: TInput;
@@ -29,7 +30,9 @@ export interface Procedure<
  * Router, a container for multiple procedures. It can have a middleware which will run before each procedure.
  */
 
-type ServiceProcedures = { [procName: string]: Procedure<any, any> };
+type ServiceProcedures = {
+	[procName: string]: Procedure<ProcedureType, any, any>;
+};
 interface IService {
 	procedures: ServiceProcedures;
 	middlewareDescription?: string; // A description of what should be the middleware responsability.
@@ -37,7 +40,9 @@ interface IService {
 }
 
 export class Service<
-	TProcedures extends ServiceProcedures = { [a: string]: Procedure },
+	TProcedures extends ServiceProcedures = {
+		[a: string]: Procedure<ProcedureType>;
+	},
 > {
 	middlewareDescription?: string | undefined;
 	name: string = "";
@@ -71,11 +76,11 @@ export class Service<
 		// The return *type* reflects the added procedure
 		TProcedures & {
 			// Using intersection type to add the new procedure signature
-			[K in N]: Procedure<I, O> & { method: M; name: N; description: Desc };
+			[K in N]: Procedure<M, I, O> & { method: M; name: N; description: Desc };
 		}
 	> {
 		// Create the procedure object explicitly matching the target type structure
-		const newProcedure: Procedure<I, O> & {
+		const newProcedure: Procedure<M, I, O> & {
 			method: M;
 			name: N;
 			description: Desc;
@@ -95,7 +100,11 @@ export class Service<
 
 		return this as unknown as Service<
 			TProcedures & {
-				[K in N]: Procedure<I, O> & { method: M; name: N; description: Desc };
+				[K in N]: Procedure<M, I, O> & {
+					method: M;
+					name: N;
+					description: Desc;
+				};
 			}
 		>;
 	}

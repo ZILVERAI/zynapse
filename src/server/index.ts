@@ -1,14 +1,24 @@
 import type { BunRequest } from "bun";
-import { APISchema, Service, type Procedure } from "../schema";
+import {
+	APISchema,
+	Service,
+	type Procedure,
+	type ProcedureType,
+} from "../schema";
 import { z } from "zod";
+import { Readable } from "stream";
 
 type ContextType = Map<string, any>;
 
-type ProcedureHandler<P extends Procedure<any, any>> = (
+type ProcedureHandler<P extends Procedure<ProcedureType, any, any>> = (
 	args: z.infer<P["input"]>,
 	request: BunRequest,
 	context: ContextType, // Information that the middleware is capable of passing to the handler.
-) => Promise<z.infer<P["output"]>>;
+) => P["method"] extends `SUBSCRIPTION`
+	? AsyncGenerator<z.infer<P["output"]>>
+	: Promise<z.infer<P["output"]>>;
+
+async function* x() {}
 
 type FullImplementation<SchemaT extends APISchema> = {
 	[ServiceName in keyof SchemaT["services"]]: ServiceImplementationHandlers<
@@ -104,8 +114,6 @@ export class ServiceImplementationBuilder<ServiceT extends Service> {
 			}
 		}
 
-		// If the original schema had a middleware description then there must be an implementation
-
 		return result;
 	}
 }
@@ -117,6 +125,8 @@ const RequestBodySchema = z.object({
 		message: "Data must be present",
 	}),
 });
+
+type Head<T> = T extends any ? T : never;
 
 export class Server<SchemaT extends APISchema> {
 	schema: SchemaT;
@@ -169,7 +179,7 @@ export class Server<SchemaT extends APISchema> {
 					implementationHandler[parsedBody.data.procedure];
 				const procedureDefinition = serviceDefinition.getProcedure(
 					parsedBody.data.procedure,
-				) as Procedure<z.Schema, z.Schema>;
+				) as Procedure<ProcedureType, z.Schema, z.Schema>;
 
 				if (
 					procedureHandler === undefined ||
@@ -208,8 +218,26 @@ export class Server<SchemaT extends APISchema> {
 					}
 				}
 
-				// And finally, run the procedure
 				try {
+					const handlerResult = procedureHandler(
+						parsedArgumentsResult.data,
+						request,
+						ctx,
+					);
+
+					// Check if the procedure is of type subscription, in which case the output is an Async generator
+					if (procedureDefinition.method === "SUBSCRIPTION") {
+						return new Response(
+							handlerResult as AsyncGenerator<
+								z.infer<typeof procedureDefinition.output>
+							>,
+							{
+								headers: {
+									"Content-Type": "text/event-stream",
+								},
+							},
+						);
+					}
 					const output = await procedureHandler(
 						parsedArgumentsResult.data,
 						request,

@@ -23,6 +23,24 @@ const postsService = new Service("Posts")
 				}),
 			),
 		}),
+	})
+	.addProcedure({
+		method: "SUBSCRIPTION",
+		description: "Useful for getting all the posts of a given user",
+		input: z.object({
+			userId: z.number({
+				message: "The user ID must be a number",
+			}),
+		}),
+		name: "StreamedGetUserPosts",
+		output: z.object({
+			posts: z.array(
+				z.object({
+					title: z.string(),
+					creationDate: z.date(),
+				}),
+			),
+		}),
 	});
 
 const schema = new APISchema({
@@ -72,6 +90,25 @@ const postsServiceImplementation = new ServiceImplementationBuilder(
 					{
 						creationDate: new Date(),
 						title: "Cool world",
+					},
+				],
+			};
+		},
+	)
+	.registerProcedureImplementation(
+		"StreamedGetUserPosts",
+		async function* (input, request, ctx) {
+			// Streamed procedures can use the same parameters, the only thing that changes is the function signature that now it must be an
+			// AsyncGenerator
+			console.log(`Streaming the posts of the user ${input.userId}`);
+
+			request.cookies.set("streamed", "true");
+
+			yield {
+				posts: [
+					{
+						creationDate: new Date(),
+						title: "Cool streaming!",
 					},
 				],
 			};
