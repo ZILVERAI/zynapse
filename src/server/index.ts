@@ -137,7 +137,7 @@ async function* generatorTransform(
 		}
 	} catch (e: any) {
 		console.log("Error at iterator.", e);
-		yield `event:error\ndata: ${e}\n\n`;
+		yield `event: error\ndata: ${e}\n\n`;
 	}
 }
 
