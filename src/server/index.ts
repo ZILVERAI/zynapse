@@ -133,11 +133,11 @@ async function* generatorTransform(
 ): AsyncGenerator<string> {
 	try {
 		for await (const chunk of inp) {
-			yield `data: ${JSON.stringify(chunk)}\n`;
+			yield `event: content\ndata: ${JSON.stringify(chunk)}\n\n`;
 		}
 	} catch (e: any) {
 		console.log("Error at iterator.", e);
-		yield `error: ${e}\n`;
+		yield `event:error\ndata: ${e}\n\n`;
 	}
 }
 
