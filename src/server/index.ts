@@ -6,7 +6,7 @@ import {
 	type ProcedureType,
 } from "../schema";
 import { z } from "zod";
-import { Readable } from "stream";
+import { PassThrough, Readable } from "stream";
 
 type ContextType = Map<string, any>;
 
@@ -128,6 +128,19 @@ const RequestBodySchema = z.object({
 
 type Head<T> = T extends any ? T : never;
 
+async function* generatorTransform(
+	inp: AsyncGenerator<any>,
+): AsyncGenerator<string> {
+	try {
+		for await (const chunk of inp) {
+			yield `data: ${JSON.stringify(chunk)}\n`;
+		}
+	} catch (e: any) {
+		console.log("Error at iterator.", e);
+		yield `error: ${e}\n`;
+	}
+}
+
 export class Server<SchemaT extends APISchema> {
 	schema: SchemaT;
 	implementation: FullImplementation<SchemaT>;
@@ -227,16 +240,16 @@ export class Server<SchemaT extends APISchema> {
 
 					// Check if the procedure is of type subscription, in which case the output is an Async generator
 					if (procedureDefinition.method === "SUBSCRIPTION") {
-						return new Response(
+						const transformed = generatorTransform(
 							handlerResult as AsyncGenerator<
 								z.infer<typeof procedureDefinition.output>
 							>,
-							{
-								headers: {
-									"Content-Type": "text/event-stream",
-								},
-							},
 						);
+						return new Response(transformed, {
+							headers: {
+								"Content-Type": "text/event-stream",
+							},
+						});
 					}
 					const output = await procedureHandler(
 						parsedArgumentsResult.data,
