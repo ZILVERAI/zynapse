@@ -80,6 +80,11 @@ return useMutation({
 	return await prettier.format(buff, { parser: "babel-ts" });
 }
 
+async function subscriptionProcedureCodeGen(
+	proc: Procedure,
+	parentService: Service,
+): Promise<string> {}
+
 async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 	// Extract the output typeAlias
 

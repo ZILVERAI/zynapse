@@ -22,6 +22,17 @@ const usersService = new Service("Users")
 			newName: z.string().min(1).max(255),
 		}),
 		output: z.boolean(),
+	})
+	.addProcedure({
+		method: "SUBSCRIPTION",
+		name: "StreamName",
+		description: "Returns the given name, letter by letter",
+		input: z.object({
+			name: z.string(),
+		}),
+		output: z.object({
+			letter: z.string().min(1),
+		}),
 	});
 
 const testService = new Service("");
@@ -37,6 +48,13 @@ test("A basic implementation works", () => {
 		})
 		.registerProcedureImplementation("ChangeUsername", async (np) => {
 			return true;
+		})
+		.registerProcedureImplementation("StreamName", async function* (ip) {
+			for (const letter of ip.name.split("")) {
+				yield {
+					letter,
+				};
+			}
 		})
 		.setMiddleware(async (r) => {
 			// Test middleware
@@ -65,6 +83,11 @@ test("A complete implementation with a typo fails", () => {
 		})
 		.registerProcedureImplementation("ChangeUsername", async (np) => {
 			return true;
+		})
+		.registerProcedureImplementation("StreamName", async function* () {
+			yield {
+				letter: "t",
+			};
 		});
 
 	expect(impl.build).toThrowError();
