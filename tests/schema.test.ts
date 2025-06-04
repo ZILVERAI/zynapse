@@ -22,6 +22,17 @@ const usersService = new Service("Users")
 			newName: z.string().min(1).max(255),
 		}),
 		output: z.boolean(),
+	})
+	.addProcedure({
+		method: "SUBSCRIPTION",
+		name: "StreamName",
+		description: "Streams back the given name, letter by letter",
+		input: z.object({
+			name: z.string(),
+		}),
+		output: z.object({
+			letter: z.string(),
+		}),
 	});
 
 const testSchema = new APISchema({
@@ -31,7 +42,7 @@ const testSchema = new APISchema({
 test("Basic Schema", () => {
 	expect(Object.keys(testSchema.services).length).toBe(1);
 
-	expect(Object.keys(usersService.procedures).length).toBe(2);
+	expect(Object.keys(usersService.procedures).length).toBe(3);
 });
 
 test("Test code gen", async () => {

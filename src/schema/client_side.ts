@@ -83,7 +83,107 @@ return useMutation({
 async function subscriptionProcedureCodeGen(
 	proc: Procedure,
 	parentService: Service,
-): Promise<string> {}
+): Promise<string> {
+	const { outputTypeIdentifier, stringifiedAlias } = getOutputAlias(
+		proc,
+		parentService,
+	);
+
+	const inputIdentifier = `${parentService.name}${proc.name}SubscriptionInputSchema`;
+	const jsonSchema = ztj(proc.input, {
+		errorMessages: true,
+		markdownDescription: true,
+	});
+	const schema = jtz(jsonSchema, {
+		withJsdocs: true,
+		name: inputIdentifier,
+	});
+
+	let buff: string = `export ${schema}\nexport ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Subscription`;
+	buff += `(args: z.infer<typeof ${inputIdentifier}>,extraOptions?: {
+		onError?: (errorMessage: string) => void;
+	})`;
+	buff += "{\n";
+	buff += `/*${proc.description}*/\n`;
+
+	// Initial setup of state.
+	buff += `const sourceRef = useRef<EventSource>();\n`;
+	buff += `const [messages, setMessages] = useState<Array<${outputTypeIdentifier}>>([]);\n`;
+	buff += `const [isConnected, setIsConnected] = useState<boolean>(false);\n`;
+
+	// Use effect main logic.
+	buff += `useEffect(() => {
+		if (
+			sourceRef.current &&
+			sourceRef.current?.readyState === sourceRef.current?.OPEN
+		) {
+			// The connection is already stablished.
+			return;
+		}
+
+		const aborter = new AbortController();
+		const targetURL = new URL("/_api");
+		const fullPayload = {
+			service: "${parentService.name}",
+			procedure: "${proc.name}",
+			data: args,
+		};
+		const stringifiedArguments = JSON.stringify(fullPayload);
+		const encodedArguments = encodeURIComponent(stringifiedArguments);
+		targetURL.searchParams.set("payload", encodedArguments);
+
+		const source = new EventSource(targetURL);
+		sourceRef.current = source;
+
+		source.addEventListener(
+			"open",
+			() => {
+				setIsConnected(true);
+			},
+			{
+				signal: aborter.signal,
+			},
+		);
+
+		source.addEventListener(
+			"error",
+			() => {
+				if (extraOptions?.onError) {
+					extraOptions.onError("Failed to connect.");
+				}
+				setIsConnected(false);
+				console.warn("No errror handler has been set for the event source");
+			},
+			{
+				signal: aborter.signal,
+			},
+		);
+
+		source.addEventListener(
+			"content",
+			(ev) => {
+				setMessages((prev) => [...prev, ev.data]);
+			},
+			{
+				signal: aborter.signal,
+			},
+		);
+
+		return () => {
+			aborter.abort();
+		};
+	}, [extraOptions, args]);
+	
+	
+	return {
+		messages,
+		isConnected,
+	};
+	}
+	`;
+
+	return await prettier.format(buff, { parser: "babel-ts" });
+}
 
 async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 	// Extract the output typeAlias
@@ -166,6 +266,8 @@ async function GenerateServiceCode(service: Service) {
 			procedureCode = await mutationProcedureCodeGen(proc, service);
 		} else if (proc.method === "QUERY") {
 			procedureCode = await queryProcedureCodeGen(proc, service);
+		} else if (proc.method === "SUBSCRIPTION") {
+			procedureCode = await subscriptionProcedureCodeGen(proc, service);
 		} else {
 			console.error("UNKOWN METHOD!");
 			throw new Error("unk method");
@@ -210,6 +312,10 @@ export async function GenerateCode(schema: APISchema): Promise<SchemaCodes> {
 		if (serviceHasMethod(service, "QUERY")) {
 			finalBuffer += `import {useQuery, UseQueryOptions} from "@tanstack/react-query";\n`;
 		}
+		if (serviceHasMethod(service, "SUBSCRIPTION")) {
+			finalBuffer += `import { useEffect, useRef, useState } from "react";\n`;
+		}
+
 		finalBuffer += 'import {z} from "zod"\n\n';
 		const buffers = await GenerateServiceCode(service);
 		finalBuffer += `// ---- Service Name: ${service.name} ----\n`;
