@@ -165,7 +165,14 @@ export class Server<SchemaT extends APISchema> {
 
 			// Parse the request body
 			try {
-				const body = await request.json();
+				let body: any;
+				if (urlObject.searchParams.has("payload")) {
+					const p = urlObject.searchParams.get("payload")!;
+					const decodedBody = decodeURIComponent(p);
+					body = JSON.parse(decodedBody);
+				} else {
+					body = await request.json();
+				}
 				const parsedBody = await RequestBodySchema.safeParseAsync(body);
 				if (parsedBody.success === false) {
 					return new Response(parsedBody.error.message, {
