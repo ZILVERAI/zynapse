@@ -31,7 +31,8 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 	}
 
 	async close() {
-		await this.connection.stream.cancel();
+		this.connection.streamController?.close();
+		// await this.connection.stream.cancel();
 	}
 
 	async write(message: z.infer<P["output"]>) {
