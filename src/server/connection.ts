@@ -1,4 +1,4 @@
-import type { BunRequest } from "bun";
+import type { BunRequest, ReadableStreamController } from "bun";
 import type { Procedure, ProcedureType } from "../schema";
 import type { z } from "zod";
 
@@ -30,13 +30,22 @@ export class Connection {
 export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 	private connection: Connection;
 	private procedureDefinition: P;
+	private closeFn: () => void;
+	private enqueueFn: ReadableStreamController<string>["enqueue"];
 	constructor(conn: Connection, procDefinition: P) {
 		this.connection = conn;
 		this.procedureDefinition = procDefinition;
+		this.closeFn = this.connection.streamController.close.bind(
+			this.connection.streamController,
+		);
+		this.enqueueFn = this.connection.streamController.enqueue.bind(
+			this.connection.streamController,
+		);
 	}
 
 	async close() {
-		this.connection.streamController?.close();
+		this.closeFn();
+
 		// await this.connection.stream.cancel();
 	}
 
@@ -48,7 +57,7 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 		try {
 			const payload = JSON.stringify(message);
 			const buff = `event: content\ndata: ${payload}\n\n`;
-			this.connection.streamController.enqueue(buff);
+			this.enqueueFn(buff);
 		} catch (e: any) {
 			console.log("Error at write method.", e);
 			// this.connection.streamController.enqueue(`event: error\ndata: ${e}\n\n`);
