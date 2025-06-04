@@ -33,6 +33,8 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 	private closeFn: () => void;
 	private enqueueFn: ReadableStreamController<string>["enqueue"];
 	private closed: boolean;
+
+	private keepaliveInterval: Timer;
 	constructor(conn: Connection, procDefinition: P) {
 		this.connection = conn;
 		this.procedureDefinition = procDefinition;
@@ -43,6 +45,10 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 			this.connection.streamController,
 		);
 		this.closed = false;
+
+		this.keepaliveInterval = setInterval(() => {
+			this.enqueueFn(`: keepalive`);
+		}, 30_000);
 	}
 
 	async close() {
@@ -51,6 +57,7 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 			return;
 		}
 
+		clearInterval(this.keepaliveInterval);
 		this.closeFn();
 		this.closed = true;
 	}

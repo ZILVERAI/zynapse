@@ -312,7 +312,7 @@ export class Server<SchemaT extends APISchema> {
 
 		this._server = Bun.serve({
 			port: _port,
-
+			idleTimeout: 45,
 			routes: {
 				"/_api": handler,
 			},
