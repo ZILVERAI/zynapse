@@ -4,14 +4,19 @@ import type { z } from "zod";
 
 export class Connection {
 	stream: ReadableStream<string>;
-	streamController: Bun.ReadableStreamController<string> | undefined;
+	streamController: Bun.ReadableStreamController<string>;
 	constructor() {
+		let controllerToBeSet: Bun.ReadableStreamController<string> | undefined;
 		this.stream = new ReadableStream<string>({
-			start: (controller) => {
-				this.streamController = controller;
+			start(controller) {
+				controllerToBeSet = controller;
 				controller.enqueue(": Connected");
 			},
 		});
+		if (!controllerToBeSet) {
+			throw new Error("No controller has been captured");
+		}
+		this.streamController = controllerToBeSet;
 	}
 
 	getStream() {
@@ -46,7 +51,7 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 			this.connection.streamController.enqueue(buff);
 		} catch (e: any) {
 			console.log("Error at write method.", e);
-			this.connection.streamController.enqueue(`event: error\ndata: ${e}\n\n`);
+			// this.connection.streamController.enqueue(`event: error\ndata: ${e}\n\n`);
 		}
 	}
 }
