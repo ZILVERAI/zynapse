@@ -255,6 +255,7 @@ export class Server<SchemaT extends APISchema> {
 						return new Response(transformed, {
 							headers: {
 								"Content-Type": "text/event-stream",
+								"Access-Control-Allow-Origin": "*", // NOTE: Temporal patch to be able to test in localhost
 							},
 						});
 					}

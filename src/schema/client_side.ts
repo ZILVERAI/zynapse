@@ -122,7 +122,7 @@ async function subscriptionProcedureCodeGen(
 		}
 
 		const aborter = new AbortController();
-		const targetURL = new URL("/_api");
+		const targetURL = new URL("/_api", window.location);
 		const fullPayload = {
 			service: "${parentService.name}",
 			procedure: "${proc.name}",
