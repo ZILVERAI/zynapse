@@ -10,7 +10,7 @@ export class Connection {
 		this.stream = new ReadableStream<string>({
 			start(controller) {
 				controllerToBeSet = controller;
-				controller.enqueue(": Connected");
+				controller.enqueue(": Connected\n\n");
 			},
 		});
 		if (!controllerToBeSet) {
@@ -47,7 +47,7 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 		this.closed = false;
 
 		this.keepaliveInterval = setInterval(() => {
-			this.enqueueFn(`: keepalive`);
+			this.enqueueFn(`: keepalive\n\n`);
 		}, 30_000);
 	}
 
