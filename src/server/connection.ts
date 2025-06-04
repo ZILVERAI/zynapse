@@ -57,11 +57,11 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 
 	async write(message: z.infer<P["output"]>) {
 		if (this.closed) {
-			throw new Error("Attepted to write on closed function.");
+			console.error(new Error("Attepted to write on closed function."));
 		}
 		/* Write a message to the connection */
 		if (this.connection.streamController === undefined) {
-			throw new Error("Connection not found.");
+			console.error(new Error("Connection not found."));
 		}
 		try {
 			const payload = JSON.stringify(message);
