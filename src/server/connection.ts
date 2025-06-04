@@ -32,6 +32,7 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 	private procedureDefinition: P;
 	private closeFn: () => void;
 	private enqueueFn: ReadableStreamController<string>["enqueue"];
+	private closed: boolean;
 	constructor(conn: Connection, procDefinition: P) {
 		this.connection = conn;
 		this.procedureDefinition = procDefinition;
@@ -41,15 +42,23 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 		this.enqueueFn = this.connection.streamController.enqueue.bind(
 			this.connection.streamController,
 		);
+		this.closed = false;
 	}
 
 	async close() {
-		this.closeFn();
+		if (this.closed) {
+			console.log("The connection has been already closed");
+			return;
+		}
 
-		// await this.connection.stream.cancel();
+		this.closeFn();
+		this.closed = true;
 	}
 
 	async write(message: z.infer<P["output"]>) {
+		if (this.closed) {
+			throw new Error("Attepted to write on closed function.");
+		}
 		/* Write a message to the connection */
 		if (this.connection.streamController === undefined) {
 			throw new Error("Connection not found.");

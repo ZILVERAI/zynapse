@@ -256,6 +256,9 @@ export class Server<SchemaT extends APISchema> {
 							conn,
 							procedureDefinition,
 						);
+						request.signal.addEventListener("abort", async () => {
+							await connWritter.close();
+						});
 						procedureHandler(
 							parsedArgumentsResult.data,
 							request,
