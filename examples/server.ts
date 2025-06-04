@@ -97,21 +97,21 @@ const postsServiceImplementation = new ServiceImplementationBuilder(
 	)
 	.registerProcedureImplementation(
 		"StreamedGetUserPosts",
-		async function* (input, request, ctx) {
+		async function (input, request, ctx, conn) {
 			// Streamed procedures can use the same parameters, the only thing that changes is the function signature that now it must be an
 			// AsyncGenerator
 			console.log(`Streaming the posts of the user ${input.userId}`);
 
 			request.cookies.set("streamed", "true");
 
-			yield {
+			conn.write({
 				posts: [
 					{
 						creationDate: new Date(),
 						title: "Cool streaming!",
 					},
 				],
-			};
+			});
 		},
 	);
 

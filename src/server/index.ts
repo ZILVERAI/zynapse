@@ -7,16 +7,27 @@ import {
 } from "../schema";
 import { z } from "zod";
 import { PassThrough, Readable } from "stream";
+import { Connection, ConnectionWritter } from "./connection";
 
 type ContextType = Map<string, any>;
 
-type ProcedureHandler<P extends Procedure<ProcedureType, any, any>> = (
+type SubscriptionHandler<P extends Procedure<ProcedureType, any, any>> = (
+	args: z.infer<P["input"]>,
+	request: BunRequest,
+	context: ContextType, // Information that the middleware is capable of passing to the handler
+	connection: ConnectionWritter<P>,
+) => Promise<any>;
+
+type NormalProcedureHandler<P extends Procedure<ProcedureType, any, any>> = (
 	args: z.infer<P["input"]>,
 	request: BunRequest,
 	context: ContextType, // Information that the middleware is capable of passing to the handler.
-) => P["method"] extends `SUBSCRIPTION`
-	? AsyncGenerator<z.infer<P["output"]>>
-	: Promise<z.infer<P["output"]>>;
+) => Promise<z.infer<P["output"]>>;
+
+type ProcedureHandler<P extends Procedure<ProcedureType, any, any>> =
+	P["method"] extends `SUBSCRIPTION`
+		? SubscriptionHandler<P>
+		: NormalProcedureHandler<P>;
 
 async function* x() {}
 
@@ -239,31 +250,31 @@ export class Server<SchemaT extends APISchema> {
 				}
 
 				try {
-					const handlerResult = procedureHandler(
-						parsedArgumentsResult.data,
-						request,
-						ctx,
-					);
-
-					// Check if the procedure is of type subscription, in which case the output is an Async generator
 					if (procedureDefinition.method === "SUBSCRIPTION") {
-						const transformed = generatorTransform(
-							handlerResult as AsyncGenerator<
-								z.infer<typeof procedureDefinition.output>
-							>,
+						const conn = new Connection();
+						const connWritter = new ConnectionWritter(
+							conn,
+							procedureDefinition,
 						);
-						return new Response(transformed, {
+						procedureHandler(
+							parsedArgumentsResult.data,
+							request,
+							ctx,
+							connWritter,
+						);
+
+						return new Response(conn.getStream(), {
 							headers: {
 								"Content-Type": "text/event-stream",
 								"Access-Control-Allow-Origin": "*", // NOTE: Temporal patch to be able to test in localhost
 							},
 						});
 					}
-					const output = await procedureHandler(
-						parsedArgumentsResult.data,
-						request,
-						ctx,
-					);
+					const output = await (
+						procedureHandler as NormalProcedureHandler<
+							typeof procedureDefinition
+						>
+					)(parsedArgumentsResult.data, request, ctx);
 
 					return new Response(
 						JSON.stringify({

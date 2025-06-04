@@ -49,13 +49,16 @@ test("A basic implementation works", () => {
 		.registerProcedureImplementation("ChangeUsername", async (np) => {
 			return true;
 		})
-		.registerProcedureImplementation("StreamName", async function* (ip) {
-			for (const letter of ip.name.split("")) {
-				yield {
-					letter,
-				};
-			}
-		})
+		.registerProcedureImplementation(
+			"StreamName",
+			async (ip, req, ctx, conn) => {
+				for (const letter of ip.name.split("")) {
+					conn.write({
+						letter,
+					});
+				}
+			},
+		)
 		.setMiddleware(async (r) => {
 			// Test middleware
 		});
@@ -84,11 +87,14 @@ test("A complete implementation with a typo fails", () => {
 		.registerProcedureImplementation("ChangeUsername", async (np) => {
 			return true;
 		})
-		.registerProcedureImplementation("StreamName", async function* () {
-			yield {
-				letter: "t",
-			};
-		});
+		.registerProcedureImplementation(
+			"StreamName",
+			async function (inp, req, ctx, conn) {
+				conn.write({
+					letter: "dummy",
+				});
+			},
+		);
 
 	expect(impl.build).toThrowError();
 });
