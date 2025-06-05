@@ -16,7 +16,7 @@ type SubscriptionHandler<P extends Procedure<ProcedureType, any, any>> = (
 	request: BunRequest,
 	context: ContextType, // Information that the middleware is capable of passing to the handler
 	connection: ConnectionWritter<P>,
-) => Promise<any>;
+) => Promise<undefined>;
 
 type NormalProcedureHandler<P extends Procedure<ProcedureType, any, any>> = (
 	args: z.infer<P["input"]>,

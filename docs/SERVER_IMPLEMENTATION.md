@@ -262,7 +262,7 @@ The context persists only for the lifetime of the request, ensuring data isolati
 
 ## Implementing SUBSCRIPTION Procedures
 
-SUBSCRIPTION procedures enable real-time data streaming between the server and client. They differ from regular QUERY and MUTATION procedures in that they maintain an open connection to continuously send data updates.
+SUBSCRIPTION procedures enable real-time data streaming between the server and client. They differ from regular QUERY and MUTATION procedures in that they maintain an open connection to continuously send data updates. All SUBSCRIPTION procedures MUST use the provided `connection` parameter and MUST return `undefined` (no return value).
 
 ### Basic Structure
 
@@ -358,11 +358,13 @@ The `onClose` method is particularly useful for resource cleanup when the client
 ### Important Notes About SUBSCRIPTION Procedures
 
 1. SUBSCRIPTION procedures receive a fourth parameter (`connection`) not available in QUERY/MUTATION procedures
-2. The procedure function should set up any necessary intervals or event listeners for data updates
-3. Always implement proper cleanup to avoid memory leaks using the `connection.onClose()` method
-4. Data sent via `connection.write()` must conform to the output schema defined in your API schema
-5. The client will receive each data update as a separate message
-6. SUBSCRIPTION connections are automatically closed when the client disconnects
+2. The `connection` parameter MUST be used in all subscription methods
+3. SUBSCRIPTION procedures MUST always return `undefined` (do not return any values)
+4. The procedure function should set up any necessary intervals or event listeners for data updates
+5. Always implement proper cleanup to avoid memory leaks using the `connection.onClose()` method
+6. Data sent via `connection.write()` must conform to the output schema defined in your API schema
+7. The client will receive each data update as a separate message
+8. SUBSCRIPTION connections are automatically closed when the client disconnects
 
 ### Best Practices for Connection Cleanup
 
@@ -541,6 +543,7 @@ const postsServiceImplementation = new ServiceImplementationBuilder(apiSchema.se
       take: 10
     });
     
+    // MUST use the connection parameter in subscription methods
     connection.write({
       posts: initialPosts.map(post => ({
         title: post.title,
@@ -569,6 +572,9 @@ const postsServiceImplementation = new ServiceImplementationBuilder(apiSchema.se
       // Additional cleanup could be performed here
       // For example: logging, metrics updates, etc.
     });
+    
+    // SUBSCRIPTION methods MUST return undefined (do not return any value)
+    // No explicit return statement is needed as JavaScript functions implicitly return undefined
   })
   // Implement other procedures as defined in schema...
   .build();
