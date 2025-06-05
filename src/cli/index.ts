@@ -3,7 +3,7 @@
 import path from "path";
 import { parseArgs } from "util";
 import { GenerateCode } from "../schema/client_side";
-import { existsSync, readFile } from "fs";
+import { existsSync, readFile, readdir, readdirSync, rm } from "fs";
 
 const {
 	values: { inputFile, outputFolder },
@@ -31,6 +31,16 @@ console.log("Code gen started", process.cwd());
 
 const fullPath = path.join(process.cwd(), inputFile);
 const file = (await import(fullPath)).default;
+
+// Remove old files.
+const oldFilesDirectory = path.join(process.cwd(), outputFolder);
+const files = readdirSync(oldFilesDirectory);
+for (const file of files) {
+	const toDelete = path.join(oldFilesDirectory, file);
+	rm(toDelete, (err) => {
+		console.log(`Error con deleting file ${file}, ${err}`);
+	});
+}
 
 // TODO: Add some sort of validation to make sure the mentioned file is actually a schema
 
