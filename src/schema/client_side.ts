@@ -165,7 +165,14 @@ async function subscriptionProcedureCodeGen(
 		sourceRef.current.addEventListener(
 			"content",
 			(ev) => {
-				setMessages((prev) => [...prev, ev.data]);
+				try {
+				const data = JSON.parse(ev.data)
+				setMessages((prev) => [...prev, data]);
+				} catch {
+					if (extraOptions?.onError) {
+					extraOptions.onError("Failed to decode data")
+					}
+				}
 			},
 			{
 				signal: aborter.signal,
