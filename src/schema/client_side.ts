@@ -101,7 +101,8 @@ async function subscriptionProcedureCodeGen(
 
 	let buff: string = `export ${schema}\nexport ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Subscription`;
 	buff += `(args: z.infer<typeof ${inputIdentifier}>,extraOptions?: {
-		onError?: (errorMessage: string) => void;
+		onError?: (errorMessage: string) => void; // Callback that executes when there's an error
+		onClose?: () => void; // Callback that executes when the connection has been closed by the server
 	})`;
 	buff += "{\n";
 	buff += `/*${proc.description}*/\n`;
@@ -163,6 +164,19 @@ async function subscriptionProcedureCodeGen(
 			"content",
 			(ev) => {
 				setMessages((prev) => [...prev, ev.data]);
+			},
+			{
+				signal: aborter.signal,
+			},
+		);
+
+		source.addEventListener(
+			"close",
+			() => {
+				source.close();
+				if (extraOptions?.onClose) {
+					extraOptions.onClose();
+				}
 			},
 			{
 				signal: aborter.signal,
