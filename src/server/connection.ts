@@ -58,7 +58,7 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 		}
 
 		try {
-			this.enqueueFn(`event: close\n\n`);
+			this.enqueueFn(`event: close\ndata: close\n\n`);
 		} catch {
 			console.log(
 				"[ZYNAPSE SUBSCRIPTION] Failed to send close connection event, has the connection already closed?",
