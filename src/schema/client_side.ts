@@ -175,7 +175,7 @@ async function subscriptionProcedureCodeGen(
 		sourceRef.current.addEventListener(
 			"close",
 			() => {
-				sourceRef.current.close();
+				sourceRef.current?.close();
 				if (extraOptions?.onClose) {
 					extraOptions.onClose();
 				}
