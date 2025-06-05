@@ -38,7 +38,11 @@ const files = readdirSync(oldFilesDirectory);
 for (const file of files) {
 	const toDelete = path.join(oldFilesDirectory, file);
 	rm(toDelete, (err) => {
-		console.log(`Error con deleting file ${file}, ${err}`);
+		if (err) {
+			console.log(`Error con deleting file ${file}, ${err}`);
+		} else {
+			console.log("Successfully deleted", file);
+		}
 	});
 }
 
