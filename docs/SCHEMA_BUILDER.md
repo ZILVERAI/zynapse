@@ -108,6 +108,40 @@ const userProfileService = new Service("UserProfile")
 
 ## Advanced Usage
 
+### Procedure Types
+
+Zynapse supports three procedure types:
+
+1. **QUERY**: Used for read operations that retrieve data without side effects
+2. **MUTATION**: Used for operations that modify data or cause side effects
+3. **SUBSCRIPTION**: Used for long-lived connections where the server sends updates to the client over time
+
+```typescript
+// Example subscription procedure
+const notificationsService = new Service("Notifications")
+  .addProcedure({
+    method: "SUBSCRIPTION",
+    name: "UserNotifications",
+    description: "Subscribe to real-time notifications for the authenticated user",
+    input: z.object({
+      types: z.array(z.enum(["message", "alert", "system"])).optional()
+    }),
+    output: z.object({
+      id: z.string().uuid(),
+      type: z.enum(["message", "alert", "system"]),
+      content: z.string(),
+      timestamp: z.date()
+    })
+  });
+```
+
+Subscription procedures allow for server-push updates and are ideal for:
+- Real-time notifications
+- Live data updates
+- Event streams
+- Chat applications
+- Monitoring dashboards
+
 ### Complex Input/Output Schemas
 
 Leverage Zod's schema composition for complex types:
@@ -253,10 +287,29 @@ const todosService = new Service("Todos")
     output: todoSchema
   });
 
+// Notifications service with subscription support
+const notificationsService = new Service("Notifications")
+  .setMiddlewareDescription("Requires 'auth_session' cookie with valid session. Cookie must contain 'userId' which is used to determine which notifications to send. Subscription connections are authenticated once at establishment time.")
+  .addProcedure({
+    method: "SUBSCRIPTION",
+    name: "UserNotifications",
+    description: "Subscribe to real-time notifications for the authenticated user. Connection is established with user context from the session cookie. Sends notification events as they occur. Connection remains open until client disconnects or session expires. No automatic session refresh occurs during subscription lifetime.",
+    input: z.object({
+      types: z.array(z.enum(["message", "alert", "system"])).optional().describe("Filter notifications by type")
+    }),
+    output: z.object({
+      id: z.string().uuid(),
+      type: z.enum(["message", "alert", "system"]),
+      content: z.string(),
+      timestamp: z.date()
+    })
+  });
+
 // Create the full API schema
 const apiSchema = new APISchema({
   Auth: authService,
-  Todos: todosService
+  Todos: todosService,
+  Notifications: notificationsService
 });
 
 export { apiSchema };
@@ -379,7 +432,7 @@ Your schema is both documentation and validation all in one. The types you defin
    - Rate limiting information
    - Required permissions
    - Side effects
-7. **Use QUERY/MUTATION correctly** - QUERY for read operations, MUTATION for operations that modify data
+7. **Use QUERY/MUTATION/SUBSCRIPTION correctly** - QUERY for read operations, MUTATION for operations that modify data, SUBSCRIPTION for long-lived connections that push updates
 8. **Define error responses** - Document all possible error responses with their conditions
 9. **Detail cookie-based authentication** - Document session cookies, expiration, refresh logic, and security attributes
 10. **Keep schemas focused** - Avoid creating "catch-all" services or generic procedures

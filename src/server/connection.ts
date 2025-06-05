@@ -35,6 +35,7 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 	private closed: boolean;
 
 	private keepaliveInterval: Timer;
+	private _onCloseInternalCallback: (() => void) | undefined;
 	constructor(conn: Connection, procDefinition: P) {
 		this.connection = conn;
 		this.procedureDefinition = procDefinition;
@@ -66,6 +67,9 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 		}
 
 		clearInterval(this.keepaliveInterval);
+		if (this._onCloseInternalCallback) {
+			this._onCloseInternalCallback();
+		}
 
 		this.closeFn();
 		this.closed = true;
@@ -87,5 +91,9 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 			console.log("Error at write method.", e);
 			// this.connection.streamController.enqueue(`event: error\ndata: ${e}\n\n`);
 		}
+	}
+
+	onClose(callback: () => void) {
+		this._onCloseInternalCallback = callback;
 	}
 }

@@ -67,6 +67,14 @@ server.start();
 
 ## Working with Procedure Handlers
 
+### Procedure Types
+
+Zynapse supports three types of procedure methods:
+
+1. **QUERY** - For retrieving data (read operations)
+2. **MUTATION** - For modifying data (write operations)
+3. **SUBSCRIPTION** - For streaming data with real-time updates
+
 ### Type-Safe Implementation
 
 Procedure handlers are fully type-safe based on the schema definition in `@/api.schema.ts`:
@@ -252,6 +260,137 @@ The context object is a Map that allows middleware to pass data to procedure han
 
 The context persists only for the lifetime of the request, ensuring data isolation between different requests.
 
+## Implementing SUBSCRIPTION Procedures
+
+SUBSCRIPTION procedures enable real-time data streaming between the server and client. They differ from regular QUERY and MUTATION procedures in that they maintain an open connection to continuously send data updates.
+
+### Basic Structure
+
+```typescript
+.registerProcedureImplementation(
+  "StreamedData",
+  async (input, request, context, connection) => {
+    // The fourth parameter 'connection' is available only for SUBSCRIPTION procedures
+    // It provides methods to send data to the client
+    
+    // Send initial data
+    connection.write({
+      data: [{ id: 1, value: "Initial value" }]
+    });
+    
+    // You can send multiple updates over time
+    setTimeout(() => {
+      connection.write({
+        data: [{ id: 2, value: "Updated value" }]
+      });
+    }, 1000);
+    
+    // Register a callback for when the connection closes
+    connection.onClose(() => {
+      console.log("Connection closed - cleaning up resources");
+      // Perform any necessary cleanup when the connection is closed
+      // For example: clear intervals, remove event listeners, etc.
+    });
+    
+    // You can also manually close the connection when needed
+    setTimeout(() => {
+      connection.close(); // This will trigger the onClose callback
+    }, 5000);
+  }
+)
+```
+
+### Connection Object
+
+The `connection` object provides the following methods:
+
+1. `write(data)` - Sends data to the client that matches the output schema
+2. `close()` - Closes the connection with the client
+3. `onClose(callback)` - Registers a callback function to be executed when the connection is closed
+
+The `onClose` method is particularly useful for resource cleanup when the client disconnects or when the connection is closed by the server. This ensures your application properly manages resources and prevents memory leaks.
+
+### Use Cases for SUBSCRIPTION Procedures
+
+- Real-time dashboards with continuously updating metrics
+- Chat applications where messages arrive in real-time
+- Event logs and activity feeds
+- Live data visualization
+- Progress updates for long-running operations
+
+### Example: Implementing a Real-Time Data Stream
+
+```typescript
+.registerProcedureImplementation(
+  "StreamMetrics",
+  async (input, request, context, connection) => {
+    // Access the input parameters
+    const { interval = 1000 } = input;
+    
+    // Initialize data source
+    const metrics = initializeMetricsCollector();
+    
+    // Set up an interval to send updates
+    const intervalId = setInterval(() => {
+      const currentMetrics = metrics.getCurrentValues();
+      
+      // Send the updated metrics to the client
+      connection.write({
+        timestamp: new Date(),
+        values: currentMetrics
+      });
+    }, interval);
+    
+    // Set up cleanup for when the connection closes
+    connection.onClose(() => {
+      console.log("Metrics stream connection closed");
+      clearInterval(intervalId); // Clean up the interval when connection closes
+    });
+    
+    // Auto-close after 1 minute as a safety measure
+    setTimeout(() => {
+      connection.close(); // This will trigger the onClose callback
+    }, 60000);
+  }
+)
+```
+
+### Important Notes About SUBSCRIPTION Procedures
+
+1. SUBSCRIPTION procedures receive a fourth parameter (`connection`) not available in QUERY/MUTATION procedures
+2. The procedure function should set up any necessary intervals or event listeners for data updates
+3. Always implement proper cleanup to avoid memory leaks using the `connection.onClose()` method
+4. Data sent via `connection.write()` must conform to the output schema defined in your API schema
+5. The client will receive each data update as a separate message
+6. SUBSCRIPTION connections are automatically closed when the client disconnects
+
+### Best Practices for Connection Cleanup
+
+Always use the `connection.onClose()` method to handle resource cleanup:
+
+```typescript
+// Register cleanup logic that runs when the connection is closed
+connection.onClose(() => {
+  // 1. Clear any intervals
+  clearInterval(myInterval);
+  
+  // 2. Remove event listeners
+  myEventEmitter.off('myEvent', myEventHandler);
+  
+  // 3. Close any open database connections or streams
+  myDatabaseConnection.release();
+  
+  // 4. Log the disconnection for monitoring/debugging
+  console.log('Client disconnected, cleaned up resources');
+});
+```
+
+Benefits of using the `onClose` method:
+- Ensures cleanup happens regardless of how the connection is closed (client disconnect, server shutdown, timeout, etc.)
+- Centralizes cleanup logic in one place
+- Prevents memory leaks and resource exhaustion
+- Makes code more maintainable and easier to debug
+
 ## Modifying Cookies
 
 Zynapse allows you to modify response cookies directly within both middleware and procedure implementations using the Bun Request object.
@@ -345,6 +484,10 @@ Here's a complete example showing how to implement all services in your schema:
 import { Server, ServiceImplementationBuilder } from "zynapse/server";
 import apiSchema from "@/api.schema.ts";
 import { db } from "./database";
+import { EventEmitter } from "events"; // Node.js built-in module for event handling
+
+// Create an event emitter for post updates
+const postEvents = new EventEmitter();
 
 // Implement the Posts service
 const postsServiceImplementation = new ServiceImplementationBuilder(apiSchema.services.Posts)
@@ -364,6 +507,68 @@ const postsServiceImplementation = new ServiceImplementationBuilder(apiSchema.se
         creationDate: post.createdAt,
       })),
     };
+  })
+  // MUTATION that creates a new post
+  .registerProcedureImplementation("CreatePost", async (input, request, context) => {
+    console.log(`Creating post for user ${input.userId}`);
+    
+    // Create post in database
+    const newPost = await prisma.post.create({
+      data: {
+        title: input.title,
+        content: input.content,
+        userId: input.userId,
+      }
+    });
+    
+    // Emit event when a new post is created
+    // This event will be listened to by active subscription connections
+    postEvents.emit(`newPost:${input.userId}`, {
+      title: newPost.title,
+      creationDate: newPost.createdAt,
+    });
+    
+    return { success: true, postId: newPost.id };
+  })
+  // SUBSCRIPTION that streams new posts
+  .registerProcedureImplementation("StreamNewPosts", async (input, request, context, connection) => {
+    console.log(`Streaming new posts for user ${input.userId}`);
+    
+    // Send initial posts data
+    const initialPosts = await prisma.post.findMany({
+      where: { userId: input.userId },
+      orderBy: { createdAt: 'desc' },
+      take: 10
+    });
+    
+    connection.write({
+      posts: initialPosts.map(post => ({
+        title: post.title,
+        creationDate: post.createdAt,
+      })),
+    });
+    
+    // Set up event listener for new posts for this specific user
+    const eventHandler = (newPost) => {
+      connection.write({
+        posts: [newPost],
+      });
+    };
+    
+    // Subscribe to events for this user
+    postEvents.on(`newPost:${input.userId}`, eventHandler);
+    
+    // Use the onClose method to clean up resources when the connection closes
+    // This is the recommended way to handle cleanup for subscription connections
+    connection.onClose(() => {
+      console.log(`Connection closed for user ${input.userId}`);
+      
+      // Remove the event listener when the connection closes
+      postEvents.off(`newPost:${input.userId}`, eventHandler);
+      
+      // Additional cleanup could be performed here
+      // For example: logging, metrics updates, etc.
+    });
   })
   // Implement other procedures as defined in schema...
   .build();
