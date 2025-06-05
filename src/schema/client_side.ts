@@ -119,10 +119,7 @@ async function subscriptionProcedureCodeGen(
 			sourceRef.current?.readyState === sourceRef.current?.OPEN
 		) {
 			// The connection is already stablished.
-			return;
-		}
-
-		const aborter = new AbortController();
+		} else {
 		const targetURL = new URL("/_api", window.location.origin);
 		const fullPayload = {
 			service: "${parentService.name}",
@@ -135,8 +132,13 @@ async function subscriptionProcedureCodeGen(
 
 		const source = new EventSource(targetURL);
 		sourceRef.current = source;
+			
+		}
 
-		source.addEventListener(
+		const aborter = new AbortController();
+		
+
+		sourceRef.current.addEventListener(
 			"open",
 			() => {
 				setIsConnected(true);
@@ -146,7 +148,7 @@ async function subscriptionProcedureCodeGen(
 			},
 		);
 
-		source.addEventListener(
+		sourceRef.current.addEventListener(
 			"error",
 			() => {
 				if (extraOptions?.onError) {
@@ -160,7 +162,7 @@ async function subscriptionProcedureCodeGen(
 			},
 		);
 
-		source.addEventListener(
+		sourceRef.current.addEventListener(
 			"content",
 			(ev) => {
 				setMessages((prev) => [...prev, ev.data]);
@@ -170,10 +172,10 @@ async function subscriptionProcedureCodeGen(
 			},
 		);
 
-		source.addEventListener(
+		sourceRef.current.addEventListener(
 			"close",
 			() => {
-				source.close();
+				sourceRef.current.close();
 				if (extraOptions?.onClose) {
 					extraOptions.onClose();
 				}
