@@ -77,8 +77,7 @@ export class ConnectionWritter<P extends Procedure<ProcedureType, any, any>> {
 
 	async write(message: z.infer<P["output"]>) {
 		if (this.closed) {
-			console.error(new Error("Attepted to write on closed function."));
-			return;
+			throw new Error("Attepted to write on closed function.");
 		}
 		/* Write a message to the connection */
 		if (this.connection.streamController === undefined) {
