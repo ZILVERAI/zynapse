@@ -156,9 +156,13 @@ export class Server<SchemaT extends APISchema> {
 	schema: SchemaT;
 	implementation: FullImplementation<SchemaT>;
 	private _server: Bun.Server | undefined;
+	private connectionPool: Array<
+		ConnectionWritter<Procedure<ProcedureType, any, any>>
+	>;
 	constructor(schema: SchemaT, implementation: FullImplementation<SchemaT>) {
 		this.schema = schema;
 		this.implementation = implementation;
+		this.connectionPool = [];
 	}
 
 	private buildHandler(): Bun.RouterTypes.RouteHandler<string> {
@@ -259,6 +263,8 @@ export class Server<SchemaT extends APISchema> {
 						request.signal.addEventListener("abort", async () => {
 							await connWritter.close();
 						});
+						this.connectionPool.push(connWritter);
+
 						procedureHandler(
 							parsedArgumentsResult.data,
 							request,
@@ -339,6 +345,13 @@ export class Server<SchemaT extends APISchema> {
 			console.log("[ZYNAPSE] Nothing to stop");
 			return;
 		}
+
+		console.log(`[ZYNAPSE] Closing ${this.connectionPool.length} connections`);
+		for (const conn of this.connectionPool) {
+			await conn.close();
+		}
+		console.log("[ZYNAPSE] All connections has been closed.");
+
 		await this._server.stop();
 		console.log("[ZYNAPSE] Server stopped");
 		return;
