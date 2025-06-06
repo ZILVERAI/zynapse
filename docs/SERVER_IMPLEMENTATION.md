@@ -274,13 +274,13 @@ SUBSCRIPTION procedures enable real-time data streaming between the server and c
     // It provides methods to send data to the client
     
     // Send initial data
-    connection.write({
+    await connection.write({
       data: [{ id: 1, value: "Initial value" }]
     });
     
     // You can send multiple updates over time
-    setTimeout(() => {
-      connection.write({
+    setTimeout(async () => {
+      await connection.write({
         data: [{ id: 2, value: "Updated value" }]
       });
     }, 1000);
@@ -304,7 +304,7 @@ SUBSCRIPTION procedures enable real-time data streaming between the server and c
 
 The `connection` object provides the following methods:
 
-1. `write(data)` - Sends data to the client that matches the output schema
+1. `write(data)` - Sends data to the client that matches the output schema (this is an async function and **MUST BE** awaited)
 2. `close()` - Closes the connection with the client
 3. `onClose(callback)` - Registers a callback function to be executed when the connection is closed
 
@@ -331,11 +331,11 @@ The `onClose` method is particularly useful for resource cleanup when the client
     const metrics = initializeMetricsCollector();
     
     // Set up an interval to send updates
-    const intervalId = setInterval(() => {
+    const intervalId = setInterval(async () => {
       const currentMetrics = metrics.getCurrentValues();
       
       // Send the updated metrics to the client
-      connection.write({
+      await connection.write({
         timestamp: new Date(),
         values: currentMetrics
       });
@@ -364,6 +364,7 @@ The `onClose` method is particularly useful for resource cleanup when the client
 5. Always implement proper cleanup to avoid memory leaks using the `connection.onClose()` method
 6. Data sent via `connection.write()` must conform to the output schema defined in your API schema
 7. The client will receive each data update as a separate message
+8. The `connection.write()` method is async and **MUST BE** awaited in all cases
 8. SUBSCRIPTION connections are automatically closed when the client disconnects
 
 ### Best Practices for Connection Cleanup
@@ -544,7 +545,7 @@ const postsServiceImplementation = new ServiceImplementationBuilder(apiSchema.se
     });
     
     // MUST use the connection parameter in subscription methods
-    connection.write({
+    await connection.write({
       posts: initialPosts.map(post => ({
         title: post.title,
         creationDate: post.createdAt,
@@ -552,8 +553,8 @@ const postsServiceImplementation = new ServiceImplementationBuilder(apiSchema.se
     });
     
     // Set up event listener for new posts for this specific user
-    const eventHandler = (newPost) => {
-      connection.write({
+    const eventHandler = async (newPost) => {
+      await connection.write({
         posts: [newPost],
       });
     };
