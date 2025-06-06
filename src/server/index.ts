@@ -272,7 +272,7 @@ export class Server<SchemaT extends APISchema> {
 							connWritter,
 						).catch((e) => {
 							console.error(
-								`[ZYNAPSE] [${procedureDefinition.name}-${procedureDefinition.method}] Error: ${e}`,
+								`[ZYNAPSE] [${procedureDefinition.name}-${procedureDefinition.method}] ${e}`,
 							);
 						});
 
