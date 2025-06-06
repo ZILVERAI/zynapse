@@ -354,6 +354,6 @@ export class Server<SchemaT extends APISchema> {
 
 		await this._server.stop();
 		console.log("[ZYNAPSE] Server stopped");
-		return;
+		process.exit(0);
 	}
 }
