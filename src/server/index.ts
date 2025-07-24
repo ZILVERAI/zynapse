@@ -340,6 +340,7 @@ export class Server<SchemaT extends APISchema> {
 
 		process.on("SIGTERM", stopServer);
 		process.on("SIGINT", stopServer);
+		process.on("SIGKILL", stopServer);
 
 		console.log(`[ZYNAPSE] Listening on ${_port}`);
 	}
