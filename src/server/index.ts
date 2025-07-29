@@ -203,10 +203,15 @@ export class Server<SchemaT extends APISchema> {
 					implementationHandler === undefined ||
 					serviceDefinition === undefined
 				) {
-					console.log("[ZYNAPSE] Service not found");
-					return new Response("Service not found", {
-						status: 404,
-					});
+					console.error(
+						`[ZYNAPSE] The service ${parsedBody.data.service} doesn't exist`,
+					);
+					return new Response(
+						`The service ${parsedBody.data.service} doesn't exist`,
+						{
+							status: 404,
+						},
+					);
 				}
 
 				// Before proceding to the final execution, lets check if we have the procedure that the client is asking.
@@ -220,20 +225,30 @@ export class Server<SchemaT extends APISchema> {
 					procedureHandler === undefined ||
 					procedureDefinition === undefined
 				) {
-					console.log("[ZYNAPSE Procedure not found]");
-					return new Response("Procedure not found", {
-						status: 404,
-					});
+					console.log(
+						`[ZYNAPSE] The procedure ${parsedBody.data.procedure} doesn't exist`,
+					);
+					return new Response(
+						`The procedure ${parsedBody.data.procedure} doesn't exist`,
+						{
+							status: 404,
+						},
+					);
 				}
 
 				// Validate the procedure input
 				const parsedArgumentsResult =
 					await procedureDefinition.input.safeParseAsync(parsedBody.data.data);
 				if (parsedArgumentsResult.success === false) {
-					console.log("[ZYNAPSE] The input has failed the validation");
-					return new Response("Invalid input", {
-						status: 400,
-					});
+					console.log(
+						`[ZYNAPSE] The input has failed the validation: ${parsedArgumentsResult.error.message}`,
+					);
+					return new Response(
+						`The input has failed the validation: ${parsedArgumentsResult.error.message}`,
+						{
+							status: 400,
+						},
+					);
 				}
 
 				const ctx: ContextType = new Map();
@@ -298,8 +313,8 @@ export class Server<SchemaT extends APISchema> {
 						},
 					);
 				} catch (e) {
-					console.log("[ZYNAPSE] The handler threw an error");
-					return new Response("Function error", {
+					console.error("[ZYNAPSE] The handler threw an error", e);
+					return new Response(`The endpoint returned an error ${e}`, {
 						status: 500,
 					});
 				}

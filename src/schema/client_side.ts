@@ -65,9 +65,16 @@ return useMutation({
 				}),
 		})
 
-		if (!response.ok) {
-			throw new Error("Mutation error")
-		}
+						if (!response.ok) {
+					let backendErrorMessage = ""
+					try {
+						backendErrorMessage = await response.text()
+					} catch {
+						backendErrorMessage = "No Error message returned from backen"
+					}
+					throw new Error("Mutation: ${proc.name} Non ok response: " + backendErrorMessage)
+				}
+
 
 		const rawResponse = await response.json()
 
@@ -266,7 +273,13 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 				})
 
 				if (!response.ok) {
-					throw new Error("Non ok response")
+					let backendErrorMessage = ""
+					try {
+						backendErrorMessage = await response.text()
+					} catch {
+						backendErrorMessage = "No Error message returned from backen"
+					}
+					throw new Error("Query: ${proc.name} Non ok response: " + backendErrorMessage)
 				}
 
 				const rawResponse = await response.json()
