@@ -235,7 +235,7 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 
 	let buff: string = `export ${jsonSchema}\nexport ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Query`;
 
-	const extraOptionsType = `Omit<UseQueryOptions<${outputTypeIdentifier}, Error, ${outputTypeIdentifier}, Array<string>>, "queryKey" | "queryFn">`;
+	const extraOptionsType = `Omit<UseQueryOptions<${outputTypeIdentifier}, Error, ${outputTypeIdentifier}, Array<string | z.infer<typeof ${inputIdentifier}>>>, "queryKey" | "queryFn">`;
 
 	buff += `(args: z.infer<typeof ${inputIdentifier}>, extraOptions?: ${extraOptionsType})`;
 	// Actual logic of the buffer here
@@ -244,8 +244,8 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 
 	// Form the keys array with args included
 	const staticKeys = [parentService.name, proc.name];
-	
-	buff += `\treturn useQuery({queryKey: [${staticKeys.map(k => `"${k}"`).join(", ")}, args], 
+
+	buff += `\treturn useQuery({queryKey: [${staticKeys.map((k) => `"${k}"`).join(", ")}, args], 
 		queryFn: async () => {
 			const validationResult = await ${inputIdentifier}.safeParseAsync(args)
 			if (validationResult.error) {
