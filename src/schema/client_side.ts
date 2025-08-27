@@ -242,18 +242,10 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 	buff += "{\n";
 	buff += `/*${proc.description}*/\n`;
 
-	// Form the keys array
-	const queryKeys: Array<string> = [parentService.name, proc.name];
-	// TODO: Dynamic keys not supported yet
-	// if (proc.input !== undefined) {
-	// 	queryKeys.push(`JSON.stringify(args)`); // Include the arguments being passed as key for cache (need a better soution)
-	// }
-
-	// Request body including/not including data
-
-	// Append them in the body
-	// TODO: Currenty we don't support dynamic query keys because of this JSON stringify, please fix.
-	buff += `\treturn useQuery({queryKey: ${JSON.stringify(queryKeys)}, 
+	// Form the keys array with args included
+	const staticKeys = [parentService.name, proc.name];
+	
+	buff += `\treturn useQuery({queryKey: [${staticKeys.map(k => `"${k}"`).join(", ")}, args], 
 		queryFn: async () => {
 			const validationResult = await ${inputIdentifier}.safeParseAsync(args)
 			if (validationResult.error) {
