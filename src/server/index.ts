@@ -6,7 +6,7 @@ import {
 	type ProcedureType,
 } from "../schema";
 import { z } from "zod";
-import { PassThrough, Readable } from "stream";
+
 import { Connection, ConnectionWritter } from "./connection";
 
 type ContextType = Map<string, any>;
@@ -155,7 +155,7 @@ async function* generatorTransform(
 export class Server<SchemaT extends APISchema> {
 	schema: SchemaT;
 	implementation: FullImplementation<SchemaT>;
-	private _server: Bun.Server | undefined;
+	private _server: Bun.Server<{}> | undefined;
 	private connectionPool: Array<
 		ConnectionWritter<Procedure<ProcedureType, any, any>>
 	>;
@@ -165,8 +165,8 @@ export class Server<SchemaT extends APISchema> {
 		this.connectionPool = [];
 	}
 
-	private buildHandler(): Bun.RouterTypes.RouteHandler<string> {
-		return async (request) => {
+	private buildHandler() {
+		return async (request: BunRequest) => {
 			// Only open under _api, if not, then close the connection
 			const urlObject = new URL(request.url);
 			if (urlObject.pathname.split("/")[1] !== "_api") {

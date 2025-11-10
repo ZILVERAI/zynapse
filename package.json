@@ -10,7 +10,7 @@
     "zynapse-cli": "./src/cli/index.ts"
   },
   "devDependencies": {
-    "@types/bun": "1.1.12",
+    "@types/bun": "^1.3.2",
     "@typescript/native-preview": "^7.0.0-dev.20250606.1"
   },
   "peerDependencies": {
