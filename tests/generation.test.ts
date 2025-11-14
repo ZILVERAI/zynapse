@@ -16,6 +16,7 @@ test("Try zod to json schema", () => {
 	});
 	console.log(jsonSchema);
 	if (jsonSchema) {
+		// @ts-ignore
 		const zodObj = jtz(jsonSchema, {
 			withJsdocs: true,
 		});

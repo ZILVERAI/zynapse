@@ -37,6 +37,7 @@ async function mutationProcedureCodeGen(
 		errorMessages: true,
 		markdownDescription: true,
 	});
+	// @ts-ignore
 	const zodCode = jtz(schema, {
 		withJsdocs: true,
 		name: inputAliasIdentifier,
@@ -101,6 +102,7 @@ async function subscriptionProcedureCodeGen(
 		errorMessages: true,
 		markdownDescription: true,
 	});
+	// @ts-ignore
 	const schema = jtz(jsonSchema, {
 		withJsdocs: true,
 		name: inputIdentifier,
@@ -228,6 +230,7 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 		errorMessages: true,
 		markdownDescription: true,
 	});
+	// @ts-ignore
 	const jsonSchema = jtz(schema, {
 		withJsdocs: true,
 		name: inputIdentifier,
