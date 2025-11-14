@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2 // [!code ++]
+      - uses: oven-sh/setup-bun@v2
       
       - name: Publish
         run: NPM_CONFIG_TOKEN=${{secrets.NPM_CONFIG_TOKEN}} bun publish
