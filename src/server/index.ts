@@ -334,7 +334,7 @@ export class Server<SchemaT extends APISchema> {
 		this.webhookHandler = handler;
 	}
 
-	handleWebhook(req: BunRequest) {
+	private async handleWebhook(req: BunRequest) {
 		if (this.webhookHandler) {
 			return this.webhookHandler(req);
 		}
@@ -360,7 +360,7 @@ export class Server<SchemaT extends APISchema> {
 			idleTimeout: 45,
 			routes: {
 				"/_api": handler,
-				"/_api/webhook": this.handleWebhook,
+				"/_api/webhook": (req) => this.handleWebhook(req),
 			},
 			async fetch(req) {
 				console.log(`[ZYNAPSE] Invalid request received. ${req.url}`);
