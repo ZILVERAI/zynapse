@@ -49,7 +49,7 @@ type ServiceImplementationHandlers<ServiceT extends Service> = {
 	>;
 };
 
-export type WebhookHandlerFunction = (req: BunRequest) => Promise<Response>;
+export type WebhookHandlerFunction = (req: Request) => Promise<Response>;
 
 export class ServiceImplementationBuilder<ServiceT extends Service> {
 	middleware: MiddlewareFunction | undefined = undefined;
