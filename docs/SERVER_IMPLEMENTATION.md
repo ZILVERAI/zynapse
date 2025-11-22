@@ -479,6 +479,204 @@ When both middleware and procedures modify the same cookies:
 2. If the same cookie is modified in both places, the procedure's changes take precedence
 3. All cookie modifications are automatically included in the final response
 
+## Implementing Webhooks
+
+Webhooks provide a way to handle custom HTTP requests outside of the standard Zynapse procedure system. This is useful for integrating with third-party services that need to send data to your server, such as payment processors, notification services, or external APIs.
+
+### Understanding Webhooks
+
+Unlike procedures which follow the Zynapse protocol (sending JSON with service, procedure, and data fields), webhooks allow you to handle raw HTTP requests at a dedicated endpoint. The webhook handler receives the raw `BunRequest` object and must return a `Response`.
+
+### Webhook Endpoint
+
+All webhook requests are handled at the `/_api/webhook` endpoint on your server. This endpoint is automatically configured when you start the server.
+
+### Implementing a Webhook Handler
+
+To implement webhook functionality, you need to:
+
+1. Define a webhook handler function
+2. Register it with the server using `registerWebhookHandler()`
+
+#### Step 1: Define the Webhook Handler
+
+```typescript
+import type { WebhookHandlerFunction } from "zynapse/server";
+
+// Create a webhook handler function
+const myWebhookHandler: WebhookHandlerFunction = async (req) => {
+  // Access request properties
+  const url = new URL(req.url);
+  const method = req.method;
+
+  // Parse the request body if needed
+  try {
+    const body = await req.json();
+    console.log("Webhook received:", body);
+
+    // Process the webhook data
+    // For example, handle a payment notification
+    if (body.event === "payment.success") {
+      await processPayment(body.paymentId);
+    }
+
+    // Return a success response
+    return new Response(JSON.stringify({ received: true }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  } catch (error) {
+    console.error("Webhook processing error:", error);
+    return new Response("Webhook processing failed", {
+      status: 500
+    });
+  }
+};
+```
+
+#### Step 2: Register the Webhook Handler
+
+After creating your server instance, register the webhook handler:
+
+```typescript
+import { Server, ServiceImplementationBuilder } from "zynapse/server";
+import apiSchema from "@/api.schema.ts";
+
+// Create and configure your server
+const server = new Server(apiSchema, {
+  // Your service implementations...
+});
+
+// Register the webhook handler
+server.registerWebhookHandler(myWebhookHandler);
+
+// Start the server
+server.start(3000);
+```
+
+### Webhook Handler Capabilities
+
+The webhook handler receives the full `BunRequest` object, giving you access to:
+
+- **Request Method**: `req.method` (GET, POST, PUT, DELETE, etc.)
+- **URL and Query Parameters**: `new URL(req.url)`
+- **Headers**: `req.headers.get("header-name")`
+- **Body**: `await req.json()`, `await req.text()`, `await req.blob()`, etc.
+- **Cookies**: `req.cookies.get("cookie-name")`
+
+### Example: Payment Webhook Integration
+
+Here's a complete example showing how to handle webhooks from a payment provider:
+
+```typescript
+import { Server, type WebhookHandlerFunction } from "zynapse/server";
+import apiSchema from "@/api.schema.ts";
+
+// Webhook handler for payment notifications
+const paymentWebhookHandler: WebhookHandlerFunction = async (req) => {
+  // Verify the request method
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  // Verify webhook signature (example for security)
+  const signature = req.headers.get("X-Webhook-Signature");
+  if (!signature || !verifyWebhookSignature(signature, req)) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  try {
+    const payload = await req.json();
+
+    // Handle different webhook events
+    switch (payload.event) {
+      case "payment.success":
+        await handlePaymentSuccess(payload.data);
+        break;
+      case "payment.failed":
+        await handlePaymentFailure(payload.data);
+        break;
+      case "subscription.cancelled":
+        await handleSubscriptionCancellation(payload.data);
+        break;
+      default:
+        console.log(`Unknown webhook event: ${payload.event}`);
+    }
+
+    // Always return a 200 response to acknowledge receipt
+    return new Response(JSON.stringify({ status: "processed" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (error) {
+    console.error("Webhook error:", error);
+
+    // Return error response
+    return new Response(JSON.stringify({ error: "Processing failed" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+};
+
+// Create server and register webhook
+const server = new Server(apiSchema, {
+  // Service implementations...
+});
+
+server.registerWebhookHandler(paymentWebhookHandler);
+server.start(3000);
+
+// Helper functions
+async function verifyWebhookSignature(signature: string, req: BunRequest): Promise<boolean> {
+  // Implement your signature verification logic
+  // This depends on your webhook provider's requirements
+  return true;
+}
+
+async function handlePaymentSuccess(data: any) {
+  console.log("Payment successful:", data);
+  // Update database, send confirmation email, etc.
+}
+
+async function handlePaymentFailure(data: any) {
+  console.log("Payment failed:", data);
+  // Notify user, update payment status, etc.
+}
+
+async function handleSubscriptionCancellation(data: any) {
+  console.log("Subscription cancelled:", data);
+  // Update subscription status, process refund, etc.
+}
+```
+
+### Security Best Practices for Webhooks
+
+1. **Verify Signatures**: Always verify webhook signatures to ensure requests come from the expected source
+2. **Use HTTPS**: In production, always use HTTPS to encrypt webhook data in transit
+3. **Validate Payloads**: Validate the structure and content of webhook payloads before processing
+4. **Rate Limiting**: Consider implementing rate limiting to prevent abuse
+5. **Idempotency**: Handle duplicate webhook deliveries gracefully (many webhook providers retry on failure)
+6. **Logging**: Log all webhook attempts for debugging and audit purposes
+
+### Error Handling
+
+If no webhook handler is registered and a request is made to `/_api/webhook`, the server will automatically return a 404 response with an error logged to the console:
+
+```
+[ZYNAPSE] Webhook endpoint was called, but no endpoint has been registered.
+```
+
+### Important Notes
+
+1. Only one webhook handler can be registered per server instance
+2. The webhook endpoint is always located at `/_api/webhook`
+3. Webhook handlers bypass the normal Zynapse procedure validation and middleware
+4. You are responsible for all validation, authentication, and error handling within the webhook handler
+5. Unlike procedures, webhooks do not have automatic input/output schema validation
+
 ## Complete Example (Using schema from @/api.schema.ts)
 
 Here's a complete example showing how to implement all services in your schema:

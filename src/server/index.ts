@@ -49,6 +49,8 @@ type ServiceImplementationHandlers<ServiceT extends Service> = {
 	>;
 };
 
+export type WebhookHandlerFunction = (req: BunRequest) => Promise<Response>;
+
 export class ServiceImplementationBuilder<ServiceT extends Service> {
 	middleware: MiddlewareFunction | undefined = undefined;
 	handlers: Partial<ServiceImplementationHandlers<ServiceT>> = {};
@@ -155,6 +157,7 @@ async function* generatorTransform(
 export class Server<SchemaT extends APISchema> {
 	schema: SchemaT;
 	implementation: FullImplementation<SchemaT>;
+	webhookHandler?: WebhookHandlerFunction;
 	private _server: Bun.Server<{}> | undefined;
 	private connectionPool: Array<
 		ConnectionWritter<Procedure<ProcedureType, any, any>>
@@ -327,6 +330,23 @@ export class Server<SchemaT extends APISchema> {
 		};
 	}
 
+	registerWebhookHandler(handler: WebhookHandlerFunction) {
+		this.webhookHandler = handler;
+	}
+
+	handleWebhook(req: BunRequest) {
+		if (this.webhookHandler) {
+			return this.webhookHandler(req);
+		}
+
+		console.error(
+			"[ZYNAPSE] Webhook endpoint was called, but no endpoint has been registered.",
+		);
+		return new Response(null, {
+			status: 404,
+		});
+	}
+
 	start(port?: number) {
 		if (this._server !== undefined) {
 			throw new Error("Cannot start 2 instances of the same server");
@@ -340,6 +360,7 @@ export class Server<SchemaT extends APISchema> {
 			idleTimeout: 45,
 			routes: {
 				"/_api": handler,
+				"/_api/webhook": this.handleWebhook,
 			},
 			async fetch(req) {
 				console.log(`[ZYNAPSE] Invalid request received. ${req.url}`);
