@@ -121,14 +121,22 @@ async function subscriptionProcedureCodeGen(
 	buff += `const [messages, setMessages] = useState<Array<${outputTypeIdentifier}>>([]);\n`;
 	buff += `const [isConnected, setIsConnected] = useState<boolean>(false);\n`;
 
+	// Avoid re-render on callback change.
+	buff += `
+const onErrorRef = useRef(extraOptions?.onError);
+const onCloseRef = useRef(extraOptions?.onClose);
+  
+useEffect(() => {
+    onErrorRef.current = extraOptions?.onError;
+    onCloseRef.current = extraOptions?.onClose;
+}, [extraOptions]);\n`;
+
 	// Use effect main logic.
 	buff += `useEffect(() => {
-		if (
-			sourceRef.current &&
-			sourceRef.current?.readyState === sourceRef.current?.OPEN
-		) {
-			// The connection is already stablished.
-		} else {
+		if (sourceRef.current) {
+			return
+		}
+
 		const targetURL = new URL("/_api", window.location.origin);
 		const fullPayload = {
 			service: "${parentService.name}",
@@ -142,69 +150,54 @@ async function subscriptionProcedureCodeGen(
 		const source = new EventSource(targetURL);
 		sourceRef.current = source;
 			
-		}
 
-		const aborter = new AbortController();
-		
-
-		sourceRef.current.addEventListener(
+		source.addEventListener(
 			"open",
 			() => {
 				setIsConnected(true);
-			},
-			{
-				signal: aborter.signal,
-			},
+			}
 		);
 
-		sourceRef.current.addEventListener(
+		source.addEventListener(
 			"error",
 			() => {
-				if (extraOptions?.onError) {
-					extraOptions.onError("Failed to connect.");
+				if (onErrorRef.current) {
+					onErrorRef.current("Failed to connect.");
 				}
 				setIsConnected(false);
-				console.warn("No errror handler has been set for the event source");
-			},
-			{
-				signal: aborter.signal,
-			},
+			}
 		);
 
-		sourceRef.current.addEventListener(
+		source.addEventListener(
 			"content",
 			(ev) => {
 				try {
 				const data = JSON.parse(ev.data)
 				setMessages((prev) => [...prev, data]);
 				} catch {
-					if (extraOptions?.onError) {
-					extraOptions.onError("Failed to decode data")
+					if (onErrorRef.current) {
+					onErrorRef.current("Failed to decode data")
 					}
 				}
-			},
-			{
-				signal: aborter.signal,
-			},
+			}
 		);
 
-		sourceRef.current.addEventListener(
+		source.addEventListener(
 			"close",
 			() => {
-				sourceRef.current?.close();
-				if (extraOptions?.onClose) {
-					extraOptions.onClose();
+				source.close();
+				if (onCloseRef.current) {
+					onCloseRef.current()
 				}
-			},
-			{
-				signal: aborter.signal,
-			},
+			}
 		);
 
 		return () => {
-			aborter.abort();
+		source.close();
+		sourceRef.current = undefined;
+		setIsConnected(false)
 		};
-	}, [extraOptions, args]);
+	}, [args]);
 	
 	
 	return {
