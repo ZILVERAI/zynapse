@@ -109,7 +109,7 @@ async function bidirectionalProcedureCodeGen(
 	});
 
 	let buff: string = `export ${schema}\nexport ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Bidirectional`;
-	buff += `(args: z.infer<typeof ${inputIdentifier}>, extraOptions?: {
+	buff += `(extraOptions?: {
 	onError?: (errorMessage: string) => void;
 	onClose?: () => void;
 })`;
@@ -150,7 +150,6 @@ const send = useCallback((data: z.infer<typeof ${inputIdentifier}>) => {
 		const fullPayload = {
 			service: "${parentService.name}",
 			procedure: "${proc.name}",
-			data: args,
 		};
 		const stringifiedArguments = JSON.stringify(fullPayload);
 		const encodedArguments = encodeURIComponent(stringifiedArguments);
@@ -193,7 +192,7 @@ const send = useCallback((data: z.infer<typeof ${inputIdentifier}>) => {
 			socketRef.current = undefined;
 			setIsConnected(false);
 		};
-	}, [args]);
+	}, []);
 
 
 return {
