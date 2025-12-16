@@ -109,7 +109,7 @@ async function bidirectionalProcedureCodeGen(
 	});
 
 	let buff: string = `export ${schema}\nexport ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Bidirectional`;
-	buff += `(extraOptions?: {
+	buff += `(active?: boolean = true,extraOptions?: {
 	onError?: (errorMessage: string) => void;
 	onClose?: () => void;
 })`;
@@ -192,7 +192,7 @@ const send = useCallback((data: z.infer<typeof ${inputIdentifier}>) => {
 			socketRef.current = undefined;
 			setIsConnected(false);
 		};
-	}, []);
+	}, [active]);
 
 
 return {
