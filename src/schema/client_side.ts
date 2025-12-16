@@ -88,6 +88,125 @@ return useMutation({
 	return await prettier.format(buff, { parser: "babel-ts" });
 }
 
+async function bidirectionalProcedureCodeGen(
+	proc: Procedure,
+	parentService: Service,
+): Promise<string> {
+	const { outputTypeIdentifier, stringifiedAlias } = getOutputAlias(
+		proc,
+		parentService,
+	);
+
+	const inputIdentifier = `${parentService.name}${proc.name}BidirectionalInputSchema`;
+	const jsonSchema = ztj(proc.input, {
+		errorMessages: true,
+		markdownDescription: true,
+	});
+	// @ts-ignore
+	const schema = jtz(jsonSchema, {
+		withJsdocs: true,
+		name: inputIdentifier,
+	});
+
+	let buff: string = `export ${schema}\nexport ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Bidirectional`;
+	buff += `(args: z.infer<typeof ${inputIdentifier}>, extraOptions?: {
+	onError?: (errorMessage: string) => void;
+	onClose?: () => void;
+})`;
+	buff += "{\n";
+	buff += `/*${proc.description}*/\n`;
+
+	// Initial setup of state.
+	buff += `const socketRef = useRef<WebSocket>();\n`;
+	buff += `const [messages, setMessages] = useState<Array<${outputTypeIdentifier}>>([]);\n`;
+	buff += `const [isConnected, setIsConnected] = useState<boolean>(false);\n`;
+
+	// Avoid re-render on callback change.
+	buff += `
+const onErrorRef = useRef(extraOptions?.onError);
+const onCloseRef = useRef(extraOptions?.onClose);
+
+useEffect(() => {
+    onErrorRef.current = extraOptions?.onError;
+    onCloseRef.current = extraOptions?.onClose;
+}, [extraOptions]);\n`;
+
+	// Send function
+	buff += `
+const send = useCallback((data: z.infer<typeof ${inputIdentifier}>) => {
+	if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+		socketRef.current.send(JSON.stringify(data));
+	}
+}, []);\n`;
+
+	// Use effect main logic.
+	buff += `useEffect(() => {
+		if (socketRef.current) {
+			return;
+		}
+
+		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+		const targetURL = new URL(\`\${protocol}//\${window.location.host}/_api\`);
+		const fullPayload = {
+			service: "${parentService.name}",
+			procedure: "${proc.name}",
+			data: args,
+		};
+		const stringifiedArguments = JSON.stringify(fullPayload);
+		const encodedArguments = encodeURIComponent(stringifiedArguments);
+		targetURL.searchParams.set("payload", encodedArguments);
+
+		const socket = new WebSocket(targetURL);
+		socketRef.current = socket;
+
+		socket.addEventListener("open", () => {
+			setIsConnected(true);
+		});
+
+		socket.addEventListener("error", () => {
+			if (onErrorRef.current) {
+				onErrorRef.current("WebSocket connection error.");
+			}
+			setIsConnected(false);
+		});
+
+		socket.addEventListener("message", (ev) => {
+			try {
+				const data = JSON.parse(ev.data);
+				setMessages((prev) => [...prev, data]);
+			} catch {
+				if (onErrorRef.current) {
+					onErrorRef.current("Failed to decode data");
+				}
+			}
+		});
+
+		socket.addEventListener("close", () => {
+			if (onCloseRef.current) {
+				onCloseRef.current();
+			}
+			setIsConnected(false);
+		});
+
+		return () => {
+			socket.close();
+			socketRef.current = undefined;
+			setIsConnected(false);
+		};
+	}, [args]);
+
+
+return {
+	messages,
+	isConnected,
+	send,
+};
+}
+`;
+
+	return await prettier.format(buff, { parser: "babel-ts" });
+}
+
 async function subscriptionProcedureCodeGen(
 	proc: Procedure,
 	parentService: Service,
@@ -292,6 +411,8 @@ async function GenerateServiceCode(service: Service) {
 			procedureCode = await queryProcedureCodeGen(proc, service);
 		} else if (proc.method === "SUBSCRIPTION") {
 			procedureCode = await subscriptionProcedureCodeGen(proc, service);
+		} else if (proc.method === "BIDIRECTIONAL") {
+			procedureCode = await bidirectionalProcedureCodeGen(proc, service);
 		} else {
 			console.error("UNKOWN METHOD!");
 			throw new Error("unk method");
@@ -336,8 +457,14 @@ export async function GenerateCode(schema: APISchema): Promise<SchemaCodes> {
 		if (serviceHasMethod(service, "QUERY")) {
 			finalBuffer += `import {useQuery, UseQueryOptions} from "@tanstack/react-query";\n`;
 		}
-		if (serviceHasMethod(service, "SUBSCRIPTION")) {
-			finalBuffer += `import { useEffect, useRef, useState } from "react";\n`;
+		const hasSubscription = serviceHasMethod(service, "SUBSCRIPTION");
+		const hasBidirectional = serviceHasMethod(service, "BIDIRECTIONAL");
+		if (hasSubscription || hasBidirectional) {
+			const reactImports = ["useEffect", "useRef", "useState"];
+			if (hasBidirectional) {
+				reactImports.unshift("useCallback");
+			}
+			finalBuffer += `import { ${reactImports.join(", ")} } from "react";\n`;
 		}
 
 		finalBuffer += 'import {z} from "zod"\n\n';

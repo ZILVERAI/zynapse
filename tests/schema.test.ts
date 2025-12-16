@@ -33,6 +33,17 @@ const usersService = new Service("Users")
 		output: z.object({
 			letter: z.string(),
 		}),
+	})
+	.addProcedure({
+		method: "BIDIRECTIONAL",
+		name: "Messages",
+		description: "A bidirectional messages service",
+		input: z.object({
+			msg: z.string(),
+		}),
+		output: z.object({
+			success: z.boolean(),
+		}),
 	});
 
 const testSchema = new APISchema({
@@ -42,7 +53,7 @@ const testSchema = new APISchema({
 test("Basic Schema", () => {
 	expect(Object.keys(testSchema.services).length).toBe(1);
 
-	expect(Object.keys(usersService.procedures).length).toBe(3);
+	expect(Object.keys(usersService.procedures).length).toBe(4);
 });
 
 test("Test code gen", async () => {
