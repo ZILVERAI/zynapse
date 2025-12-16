@@ -147,6 +147,11 @@ const RequestBodySchema = z.object({
 	}),
 });
 
+// const WebsocketRequestBodySchema = z.object({
+// 	procedure: z.string({ message: "Procedure is not present in the body" }),
+// 	service: z.string({ message: "Service is not present in the body" }),
+// });
+
 type Head<T> = T extends any ? T : never;
 
 async function* generatorTransform(
@@ -265,21 +270,6 @@ export class Server<SchemaT extends APISchema> {
 					);
 				}
 
-				// Validate the procedure input
-				const parsedArgumentsResult =
-					await procedureDefinition.input.safeParseAsync(parsedBody.data.data);
-				if (parsedArgumentsResult.success === false) {
-					console.log(
-						`[ZYNAPSE] The input has failed the validation: ${parsedArgumentsResult.error.message}`,
-					);
-					return new Response(
-						`The input has failed the validation: ${parsedArgumentsResult.error.message}`,
-						{
-							status: 400,
-						},
-					);
-				}
-
 				const ctx: ContextType = new Map();
 
 				// Now, run the middleware if it exists
@@ -321,6 +311,22 @@ export class Server<SchemaT extends APISchema> {
 						}
 
 						return;
+					}
+					// Validate the procedure input
+					const parsedArgumentsResult =
+						await procedureDefinition.input.safeParseAsync(
+							parsedBody.data.data,
+						);
+					if (parsedArgumentsResult.success === false) {
+						console.log(
+							`[ZYNAPSE] The input has failed the validation: ${parsedArgumentsResult.error.message}`,
+						);
+						return new Response(
+							`The input has failed the validation: ${parsedArgumentsResult.error.message}`,
+							{
+								status: 400,
+							},
+						);
 					}
 
 					if (procedureDefinition.method === "SUBSCRIPTION") {

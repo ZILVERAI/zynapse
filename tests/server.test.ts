@@ -94,7 +94,7 @@ test("A basic implementation works", async () => {
 	const p = {
 		service: "Users",
 		procedure: "Messages",
-		data: { msg: "" },
+		data: {},
 	};
 	const urlObj = new URL("ws://localhost:1234/_api");
 	urlObj.searchParams.set("payload", JSON.stringify(p));
