@@ -69,11 +69,12 @@ server.start();
 
 ### Procedure Types
 
-Zynapse supports three types of procedure methods:
+Zynapse supports four types of procedure methods:
 
 1. **QUERY** - For retrieving data (read operations)
 2. **MUTATION** - For modifying data (write operations)
-3. **SUBSCRIPTION** - For streaming data with real-time updates
+3. **SUBSCRIPTION** - For streaming data from server to client with real-time updates
+4. **BIDIRECTIONAL** - For full two-way WebSocket communication between server and client
 
 ### Type-Safe Implementation
 
@@ -393,6 +394,306 @@ Benefits of using the `onClose` method:
 - Centralizes cleanup logic in one place
 - Prevents memory leaks and resource exhaustion
 - Makes code more maintainable and easier to debug
+
+## Implementing BIDIRECTIONAL Procedures
+
+BIDIRECTIONAL procedures enable full two-way WebSocket communication between the server and client. Unlike SUBSCRIPTION procedures which only stream data from server to client, BIDIRECTIONAL procedures allow both parties to send messages at any time, making them ideal for interactive real-time applications.
+
+### Basic Structure
+
+```typescript
+.registerProcedureImplementation(
+  "ChatRoom",
+  async (initialRequest, connection, context) => {
+    // The handler receives three parameters:
+    // - initialRequest: The original HTTP request that initiated the WebSocket upgrade
+    // - connection: A BidirectionalConnection object for two-way communication
+    // - context: Context data set by middleware
+
+    // Register message handlers for incoming client messages
+    connection.addOnMessageListener({
+      name: "MessageHandler",
+      callback: async (conn, msg) => {
+        // msg is typed according to the input schema
+        console.log(`Received message: ${msg.content}`);
+
+        // Send a response back to the client
+        await conn.sendMessage({
+          status: "received",
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // BIDIRECTIONAL procedures MUST return undefined
+  }
+)
+```
+
+### Connection Object
+
+The `connection` object (`BidirectionalConnection`) provides the following methods:
+
+1. `sendMessage(data)` - Sends data to the client that matches the output schema
+2. `addOnMessageListener(callable)` - Registers a callback function to handle incoming messages from the client
+3. `close(reason?)` - Manually closes the WebSocket connection with an optional reason string
+4. `addOnCloseMessageListener(callback)` - Registers a callback function to be executed when the connection is closed
+
+### Message Listener Structure
+
+When adding message listeners, you provide an object with:
+
+```typescript
+{
+  name: string;              // A unique name for debugging purposes
+  callback: (conn, msg) => Promise<void>;  // The handler function
+}
+```
+
+The callback receives:
+- `conn`: The BidirectionalConnection object (allows sending responses)
+- `msg`: The incoming message, typed according to the input schema
+
+### Closing Connections and Cleanup
+
+BIDIRECTIONAL connections can be closed either by the client disconnecting or by the server calling `close()`. Use `addOnCloseMessageListener()` to handle cleanup when the connection ends.
+
+```typescript
+.registerProcedureImplementation(
+  "ChatRoom",
+  async (initialRequest, connection, context) => {
+    const userId = context.get("userId");
+
+    // Register cleanup logic that runs when the connection is closed
+    connection.addOnCloseMessageListener(async (conn) => {
+      console.log(`User ${userId} disconnected`);
+
+      // Clean up resources
+      chatRooms.removeUser(userId);
+      await notifyOtherUsers(userId, "left");
+    });
+
+    connection.addOnMessageListener({
+      name: "MessageHandler",
+      callback: async (conn, msg) => {
+        if (msg.type === "leave") {
+          // Server-initiated close with a reason
+          await conn.close("User requested to leave");
+          return;
+        }
+
+        // Handle other messages...
+      }
+    });
+  }
+)
+```
+
+The `addOnCloseMessageListener` callback:
+- Receives the `BidirectionalConnection` object as its parameter
+- Is called regardless of how the connection was closed (client disconnect, server `close()`, or network error)
+- Can be used to clean up intervals, remove event listeners, update user status, etc.
+
+### Input and Output Schemas
+
+For BIDIRECTIONAL procedures:
+- **Input schema**: Defines the structure of messages FROM the client TO the server
+- **Output schema**: Defines the structure of messages FROM the server TO the client
+
+```typescript
+.addProcedure({
+  method: "BIDIRECTIONAL",
+  name: "ChatRoom",
+  description: "Real-time chat room",
+  input: z.object({
+    // Structure of client-to-server messages
+    type: z.enum(["join", "message", "typing"]),
+    roomId: z.string().optional(),
+    content: z.string().optional(),
+    isTyping: z.boolean().optional()
+  }),
+  output: z.object({
+    // Structure of server-to-client messages
+    type: z.enum(["joined", "message", "ack", "typing"]),
+    from: z.string().optional(),
+    content: z.string().optional(),
+    timestamp: z.string()
+  })
+})
+```
+
+### Use Cases for BIDIRECTIONAL Procedures
+
+- Real-time chat applications
+- Multiplayer games with live interactions
+- Collaborative editing (documents, whiteboards)
+- Interactive dashboards with user inputs
+- Live auctions or trading platforms
+- Remote control applications
+
+### Example: Implementing a Chat Room
+
+```typescript
+.registerProcedureImplementation(
+  "ChatRoom",
+  async (initialRequest, connection, context) => {
+    // Get user info from context (set by middleware)
+    const userId = context.get("userId");
+
+    // Track which room this user joins (set when they send a "join" message)
+    let currentRoomId: string | null = null;
+
+    // Handle incoming messages from this client
+    connection.addOnMessageListener({
+      name: "ChatMessageHandler",
+      callback: async (conn, msg) => {
+        // Handle different message types
+        switch (msg.type) {
+          case "join":
+            // Client sends room ID via WebSocket message to join a room
+            currentRoomId = msg.roomId;
+            chatRooms.addConnection(currentRoomId, userId, conn);
+
+            // Acknowledge the join
+            await conn.sendMessage({
+              type: "joined",
+              timestamp: new Date().toISOString()
+            });
+            break;
+
+          case "message":
+            if (!currentRoomId) {
+              // User hasn't joined a room yet
+              return;
+            }
+
+            console.log(`User ${userId} sent: ${msg.content}`);
+
+            // Broadcast to other users in the room
+            const otherConnections = chatRooms.getOtherConnections(currentRoomId, userId);
+            for (const otherConn of otherConnections) {
+              await otherConn.sendMessage({
+                type: "message",
+                from: userId,
+                content: msg.content,
+                timestamp: new Date().toISOString()
+              });
+            }
+
+            // Acknowledge receipt to sender
+            await conn.sendMessage({
+              type: "ack",
+              timestamp: new Date().toISOString()
+            });
+            break;
+
+          case "typing":
+            if (!currentRoomId) return;
+
+            // Broadcast typing indicator to other users
+            const roomConnections = chatRooms.getOtherConnections(currentRoomId, userId);
+            for (const otherConn of roomConnections) {
+              await otherConn.sendMessage({
+                type: "typing",
+                from: userId,
+                timestamp: new Date().toISOString()
+              });
+            }
+            break;
+        }
+      }
+    });
+
+    // BIDIRECTIONAL procedures MUST return undefined
+  }
+)
+```
+
+### Example: Real-Time Game State
+
+```typescript
+.registerProcedureImplementation(
+  "GameSession",
+  async (initialRequest, connection, context) => {
+    const playerId = context.get("playerId");
+    let gameId: string | null = null;
+
+    connection.addOnMessageListener({
+      name: "GameHandler",
+      callback: async (conn, msg) => {
+        switch (msg.type) {
+          case "joinGame":
+            // Player joins a game by sending a message with the game ID
+            gameId = msg.gameId;
+            gameEngine.addPlayer(gameId, playerId, conn);
+
+            // Send initial game state
+            const initialState = await gameEngine.getState(gameId);
+            await conn.sendMessage({
+              type: "gameState",
+              state: initialState
+            });
+            break;
+
+          case "action":
+            if (!gameId) return;
+
+            // Process the player's action
+            const result = await gameEngine.processAction(gameId, playerId, msg.action);
+
+            // Send the result back to this player
+            await conn.sendMessage({
+              type: "actionResult",
+              success: result.success,
+              newState: result.state
+            });
+
+            // Broadcast state update to all other players
+            await broadcastGameState(gameId, playerId, result.state);
+            break;
+        }
+      }
+    });
+
+    // BIDIRECTIONAL procedures MUST return undefined
+  }
+)
+```
+
+### Important Notes About BIDIRECTIONAL Procedures
+
+1. BIDIRECTIONAL procedures receive three parameters: `initialRequest`, `connection`, and `context`
+2. The `connection` parameter MUST be used to handle WebSocket communication
+3. BIDIRECTIONAL procedures MUST always return `undefined` (do not return any values)
+4. Messages sent via `sendMessage()` must conform to the output schema defined in your API schema
+5. Incoming messages received in the callback must conform to the input schema
+6. You can register multiple message listeners for different handling logic
+7. The listener `name` property is used for debugging and error messages
+8. Errors in message handlers are caught and logged automatically
+9. Use `close(reason?)` to programmatically close the connection from the server side
+10. Use `addOnCloseMessageListener()` to handle cleanup when the connection closes (regardless of who initiated the close)
+
+### Differences from SUBSCRIPTION Procedures
+
+| Feature | SUBSCRIPTION | BIDIRECTIONAL |
+|---------|--------------|---------------|
+| Communication | Server → Client only | Server ↔ Client |
+| Transport | Server-Sent Events (SSE) | WebSockets |
+| Client can send data | No (only initial input) | Yes (anytime) |
+| Send data to client | `write()` | `sendMessage()` |
+| Handle incoming messages | N/A | `addOnMessageListener()` |
+| Close connection | `close()` | `close(reason?)` |
+| Handle close event | `onClose()` | `addOnCloseMessageListener()` |
+| Use case | Data streaming, notifications | Interactive real-time apps |
+
+### Best Practices for BIDIRECTIONAL Procedures
+
+1. **Use message types**: Add a `type` field to your input schema to differentiate message purposes (join, message, action, etc.)
+2. **Handle connection state**: Track user state (e.g., which room they've joined) within the handler closure
+3. **Validate state before actions**: Check that prerequisites are met (e.g., user has joined a room) before processing messages
+4. **Organize message handlers**: Use descriptive names for your listeners to make debugging easier
+5. **Always register cleanup handlers**: Use `addOnCloseMessageListener()` to clean up resources when connections close
+6. **Error handling**: Errors in message callbacks are logged automatically, but consider sending error responses to clients
 
 ## Modifying Cookies
 

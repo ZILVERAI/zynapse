@@ -462,6 +462,16 @@ export class Server<SchemaT extends APISchema> {
 						);
 					}
 				},
+				close(ws) {
+					if (!ws.data.connectionHandler) {
+						console.error(
+							"Websocket doesn't have a connection handler, unable to handle close state.",
+						);
+						return;
+					}
+
+					ws.data.connectionHandler.close();
+				},
 			},
 			async fetch(req) {
 				console.log(`[ZYNAPSE] Invalid request received. ${req.url}`);

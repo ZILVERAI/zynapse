@@ -110,11 +110,12 @@ const userProfileService = new Service("UserProfile")
 
 ### Procedure Types
 
-Zynapse supports three procedure types:
+Zynapse supports four procedure types:
 
 1. **QUERY**: Used for read operations that retrieve data without side effects
 2. **MUTATION**: Used for operations that modify data or cause side effects
 3. **SUBSCRIPTION**: Used for long-lived connections where the server sends updates to the client over time
+4. **BIDIRECTIONAL**: Used for full-duplex communication where both client and server can send messages at any time
 
 ```typescript
 // Example subscription procedure
@@ -141,6 +142,75 @@ Subscription procedures allow for server-push updates and are ideal for:
 - Event streams
 - Chat applications
 - Monitoring dashboards
+
+In bidirectional procedures:
+- **input**: Defines the schema for messages sent FROM the client TO the server
+- **output**: Defines the schema for messages sent FROM the server TO the client
+
+Both schemas are validated independently as messages flow in each direction throughout the connection lifetime.
+
+```typescript
+// Example bidirectional procedure
+const collaborationService = new Service("Collaboration")
+  .addProcedure({
+    method: "BIDIRECTIONAL",
+    name: "DocumentEditor",
+    description: "Real-time collaborative document editing with bidirectional updates",
+    // input: Messages the CLIENT sends TO the SERVER
+    input: z.object({
+      documentId: z.string().uuid(),
+      operation: z.discriminatedUnion("type", [
+        z.object({
+          type: z.literal("insert"),
+          position: z.number(),
+          content: z.string()
+        }),
+        z.object({
+          type: z.literal("delete"),
+          position: z.number(),
+          length: z.number()
+        }),
+        z.object({
+          type: z.literal("cursor"),
+          position: z.number()
+        })
+      ])
+    }),
+    // output: Messages the SERVER sends TO the CLIENT
+    output: z.object({
+      userId: z.string().uuid(),
+      operation: z.discriminatedUnion("type", [
+        z.object({
+          type: z.literal("insert"),
+          position: z.number(),
+          content: z.string()
+        }),
+        z.object({
+          type: z.literal("delete"),
+          position: z.number(),
+          length: z.number()
+        }),
+        z.object({
+          type: z.literal("cursor"),
+          position: z.number()
+        }),
+        z.object({
+          type: z.literal("sync"),
+          content: z.string(),
+          version: z.number()
+        })
+      ]),
+      timestamp: z.date()
+    })
+  });
+```
+
+Bidirectional procedures enable true two-way communication and are ideal for:
+- Collaborative editing (documents, whiteboards)
+- Multiplayer games
+- Interactive terminals
+- Video/audio calls with signaling
+- Real-time auctions or trading platforms
 
 ### Complex Input/Output Schemas
 
@@ -432,7 +502,7 @@ Your schema is both documentation and validation all in one. The types you defin
    - Rate limiting information
    - Required permissions
    - Side effects
-7. **Use QUERY/MUTATION/SUBSCRIPTION correctly** - QUERY for read operations, MUTATION for operations that modify data, SUBSCRIPTION for long-lived connections that push updates
+7. **Use QUERY/MUTATION/SUBSCRIPTION/BIDIRECTIONAL correctly** - QUERY for read operations, MUTATION for operations that modify data, SUBSCRIPTION for server-push updates, BIDIRECTIONAL for full-duplex two-way communication
 8. **Define error responses** - Document all possible error responses with their conditions
 9. **Detail cookie-based authentication** - Document session cookies, expiration, refresh logic, and security attributes
 10. **Keep schemas focused** - Avoid creating "catch-all" services or generic procedures

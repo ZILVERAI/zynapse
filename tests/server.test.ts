@@ -71,13 +71,18 @@ test("A basic implementation works", async () => {
 			},
 		)
 		.registerProcedureImplementation("Messages", async (req, conn, ctx) => {
+			conn.addOnCloseMessageListener(async (conn) => {
+				console.log("Websocket is closing...");
+			});
 			conn.addOnMessageListener({
 				name: "Test",
 				callback: async (conn, msg) => {
 					console.log("Got a message!: ", msg);
-					conn.sendMessage({
+					await conn.sendMessage({
 						success: true,
 					});
+
+					await conn.close();
 				},
 			});
 		})

@@ -5,6 +5,7 @@ import type { EventListener } from "bun";
 
 type BidirectionalCustomIncomingEvent<TInput extends z.ZodTypeAny> =
 	Bun.CustomEventInit<z.infer<TInput>>;
+type BidirectionalCustomCloseEvent = Bun.CustomEventInit<{ reason?: string }>;
 
 type onMessageCallable<
 	TInput extends z.ZodTypeAny,
@@ -47,6 +48,24 @@ export class BidirectionalConnection<
 		}
 
 		this.connection.send(JSON.stringify(result.data));
+	}
+
+	public async addOnCloseMessageListener(
+		callable: (conn: BidirectionalConnection<TInput, TOutput>) => Promise<void>,
+	) {
+		this.eventTarget.addEventListener("close", async () => {
+			callable(this);
+		});
+	}
+
+	public async close(reason?: string) {
+		console.info("[ZYNAPSE] Bidirectional connection closing...");
+		this.connection.close(undefined, reason);
+		this.eventTarget.dispatchEvent(
+			new CustomEvent("close", {
+				detail: reason,
+			} as BidirectionalCustomCloseEvent),
+		);
 	}
 
 	public async addOnMessageListener(
