@@ -8,8 +8,9 @@ import {
 import { z } from "zod";
 
 import { Connection, ConnectionWritter } from "./connection";
+import { BidirectionalConnection } from "./bidirectional-connection";
 
-type ContextType = Map<string, any>;
+export type ContextType = Map<string, any>;
 
 type SubscriptionHandler<P extends Procedure<ProcedureType, any, any>> = (
 	args: z.infer<P["input"]>,
@@ -25,11 +26,18 @@ type NormalProcedureHandler<P extends Procedure<ProcedureType, any, any>> = (
 ) => Promise<z.infer<P["output"]>>;
 
 type ProcedureHandler<P extends Procedure<ProcedureType, any, any>> =
-	P["method"] extends `SUBSCRIPTION`
+	P["method"] extends "SUBSCRIPTION"
 		? SubscriptionHandler<P>
-		: NormalProcedureHandler<P>;
-
-async function* x() {}
+		: P["method"] extends "BIDIRECTIONAL"
+			? (
+					initialRequest: BunRequest,
+					bidirectionalconnection: BidirectionalConnection<
+						P["input"],
+						P["output"]
+					>,
+					context: ContextType,
+				) => Promise<undefined>
+			: NormalProcedureHandler<P>;
 
 type FullImplementation<SchemaT extends APISchema> = {
 	[ServiceName in keyof SchemaT["services"]]: ServiceImplementationHandlers<
@@ -154,6 +162,21 @@ async function* generatorTransform(
 	}
 }
 
+type internalWSData<SchemaT extends APISchema> = {
+	ctx: ContextType;
+	initialRequest: BunRequest;
+	procDefinition: Procedure<
+		"BIDIRECTIONAL",
+		z.ZodType<any, z.ZodTypeDef, any>,
+		z.ZodType<any, z.ZodTypeDef, any>
+	>;
+	procedure: ProcedureHandler<
+		SchemaT["services"][string]["procedures"][string]
+	>;
+
+	connectionHandler?: BidirectionalConnection<z.ZodTypeAny, z.ZodTypeAny>;
+};
+
 export class Server<SchemaT extends APISchema> {
 	schema: SchemaT;
 	implementation: FullImplementation<SchemaT>;
@@ -169,7 +192,10 @@ export class Server<SchemaT extends APISchema> {
 	}
 
 	private buildHandler() {
-		return async (request: BunRequest) => {
+		return async (
+			request: BunRequest,
+			server: Bun.Server<internalWSData<SchemaT>>,
+		) => {
 			// Only open under _api, if not, then close the connection
 			const urlObject = new URL(request.url);
 			if (urlObject.pathname.split("/")[1] !== "_api") {
@@ -272,6 +298,31 @@ export class Server<SchemaT extends APISchema> {
 				}
 
 				try {
+					if (procedureDefinition.method === "BIDIRECTIONAL") {
+						// Create ctx around connection and upgrade.
+
+						const result = server.upgrade(request, {
+							data: {
+								ctx: ctx,
+								initialRequest: request.clone(),
+								procDefinition: procedureDefinition as Procedure<
+									"BIDIRECTIONAL",
+									z.Schema,
+									z.Schema
+								>,
+								procedure: procedureHandler,
+							},
+						});
+
+						if (!result) {
+							console.error(
+								"[ZYNAPSE] Failed to upgrade connection to websocket.",
+							);
+						}
+
+						return;
+					}
+
 					if (procedureDefinition.method === "SUBSCRIPTION") {
 						const conn = new Connection();
 						const connWritter = new ConnectionWritter(
@@ -283,16 +334,17 @@ export class Server<SchemaT extends APISchema> {
 						});
 						this.connectionPool.push(connWritter);
 
-						procedureHandler(
-							parsedArgumentsResult.data,
-							request,
-							ctx,
-							connWritter,
-						).catch((e) => {
-							console.error(
-								`[ZYNAPSE] [${procedureDefinition.name}-${procedureDefinition.method}] ${e}`,
-							);
-						});
+						(
+							procedureHandler as SubscriptionHandler<
+								typeof procedureDefinition
+							>
+						)(parsedArgumentsResult.data, request, ctx, connWritter).catch(
+							(e) => {
+								console.error(
+									`[ZYNAPSE] [${procedureDefinition.name}-${procedureDefinition.method}] ${e}`,
+								);
+							},
+						);
 
 						return new Response(conn.getStream(), {
 							headers: {
@@ -358,12 +410,56 @@ export class Server<SchemaT extends APISchema> {
 		this._server = Bun.serve({
 			port: _port,
 			idleTimeout: 45,
+
 			routes: {
 				"/_api": handler,
 				"/_api/webhook": (req) => this.handleWebhook(req),
 			},
+			websocket: {
+				data: {} as internalWSData<SchemaT>,
+				open(ws) {
+					if (!ws.data.connectionHandler) {
+						console.info("[ZYNAPSE] Creating WS Connection Handler...");
+						ws.data.connectionHandler = new BidirectionalConnection(
+							ws.data.ctx,
+							ws.data.procDefinition,
+							ws,
+						);
+					}
+					(
+						ws.data.procedure as ProcedureHandler<typeof ws.data.procDefinition>
+					)(
+						ws.data.initialRequest,
+						ws.data.connectionHandler,
+						ws.data.ctx,
+					).catch((e) => {
+						console.error(
+							`[ZYNAPSE] Error happened on the setup procedure\nError:${e}\n\nClosing connection...`,
+						);
+						ws.close(1011, "Procedure error.");
+					});
+				},
+				message(ws, message) {
+					if (!ws.data.connectionHandler) {
+						console.warn(
+							"A websocket message has been received but there's no connection handler registered.",
+						);
+						return;
+					}
+
+					try {
+						const parsed = JSON.parse(message as string);
+						ws.data.connectionHandler._onClientMessage(parsed);
+					} catch (e) {
+						console.error(
+							`[ZYNAPSE] Failed to parse incoming websocket message\n${e}`,
+						);
+					}
+				},
+			},
 			async fetch(req) {
 				console.log(`[ZYNAPSE] Invalid request received. ${req.url}`);
+
 				return new Response(null, {
 					status: 404,
 				});

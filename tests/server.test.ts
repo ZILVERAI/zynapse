@@ -33,6 +33,17 @@ const usersService = new Service("Users")
 		output: z.object({
 			letter: z.string().min(1),
 		}),
+	})
+	.addProcedure({
+		method: "BIDIRECTIONAL",
+		name: "Messages",
+		description: "A bidirectional messages service",
+		input: z.object({
+			msg: z.string(),
+		}),
+		output: z.object({
+			success: z.boolean(),
+		}),
 	});
 
 const testService = new Service("");
@@ -41,7 +52,7 @@ const testSchema = new APISchema({
 	Users: usersService,
 });
 
-test("A basic implementation works", () => {
+test("A basic implementation works", async () => {
 	const impl = new ServiceImplementationBuilder(testSchema.services.Users)
 		.registerProcedureImplementation("GetUserById", async (inp) => {
 			return true;
@@ -59,6 +70,17 @@ test("A basic implementation works", () => {
 				}
 			},
 		)
+		.registerProcedureImplementation("Messages", async (req, conn, ctx) => {
+			conn.addOnMessageListener({
+				name: "Test",
+				callback: async (conn, msg) => {
+					console.log("Got a message!: ", msg);
+					conn.sendMessage({
+						success: true,
+					});
+				},
+			});
+		})
 		.setMiddleware(async (r) => {
 			// Test middleware
 		});
@@ -66,6 +88,38 @@ test("A basic implementation works", () => {
 	const server = new Server(testSchema, {
 		Users: impl.build(),
 	});
+
+	server.start(1234);
+
+	const p = {
+		service: "Users",
+		procedure: "Messages",
+		data: { msg: "" },
+	};
+	const urlObj = new URL("ws://localhost:1234/_api");
+	urlObj.searchParams.set("payload", JSON.stringify(p));
+	const ws = new WebSocket(urlObj);
+	const messages: Array<any> = [];
+	ws.addEventListener("message", (ev) => {
+		messages.push(ev.data);
+	});
+
+	await new Promise<void>((resolve, reject) => {
+		ws.addEventListener("open", () => {
+			ws.send(JSON.stringify({ msg: "hello" }));
+			// resolve();
+			setTimeout(() => {
+				resolve();
+			}, 500);
+		});
+		ws.addEventListener("error", (e) => {
+			reject(new Error("WebSocket error"));
+		});
+	});
+
+	ws.close();
+	server.stop();
+	expect(messages.length).toBe(1);
 });
 
 test("An incomplete implementation fails", () => {

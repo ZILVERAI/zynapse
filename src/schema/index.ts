@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-export type ProcedureType = `MUTATION` | `QUERY` | `SUBSCRIPTION`;
+export type ProcedureType =
+	| `MUTATION`
+	| `QUERY`
+	| `SUBSCRIPTION`
+	| `BIDIRECTIONAL`;
 
 /**
  * Represents a single procedure.
