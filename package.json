@@ -1,6 +1,6 @@
 {
   "name": "zynapse",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "A TypeScript library providing a schema-based API system with type-safe server implementations",
   "type": "module",
   "main": "./dist/schema/index.js",
