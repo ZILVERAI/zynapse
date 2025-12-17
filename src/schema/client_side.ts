@@ -109,7 +109,7 @@ async function bidirectionalProcedureCodeGen(
 	});
 
 	let buff: string = `export ${schema}\nexport ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Bidirectional`;
-	buff += `(active?: boolean = true,extraOptions?: {
+	buff += `(active: boolean = true,extraOptions?: {
 	onError?: (errorMessage: string) => void;
 	onClose?: () => void;
 })`;
