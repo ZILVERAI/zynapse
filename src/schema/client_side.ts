@@ -150,6 +150,7 @@ const send = useCallback((data: z.infer<typeof ${inputIdentifier}>) => {
 		const fullPayload = {
 			service: "${parentService.name}",
 			procedure: "${proc.name}",
+			data: {}
 		};
 		const stringifiedArguments = JSON.stringify(fullPayload);
 		const encodedArguments = encodeURIComponent(stringifiedArguments);
