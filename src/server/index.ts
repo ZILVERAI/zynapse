@@ -506,7 +506,7 @@ export class Server<SchemaT extends APISchema> {
 		}
 		console.log("[ZYNAPSE] All connections has been closed.");
 
-		await this._server.stop();
+		await this._server.stop(true);
 		console.log("[ZYNAPSE] Server stopped");
 		process.exit(0);
 	}
