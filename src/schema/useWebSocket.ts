@@ -68,18 +68,6 @@ export interface UseWebSocketOptions {
 	 * @default true
 	 */
 	connectOnMount?: boolean;
-
-	/**
-	 * Heartbeat interval in milliseconds (0 to disable)
-	 * @default 0
-	 */
-	heartbeatInterval?: number;
-
-	/**
-	 * Heartbeat message to send
-	 * @default "ping"
-	 */
-	heartbeatMessage?: string;
 }
 
 export interface UseWebSocketReturn<TInput = any, TOutput = any> {
@@ -171,14 +159,12 @@ export function useWebSocket<TInput = any, TOutput = any>(
 		reconnectBackoffMultiplier = 1.5,
 		protocols,
 		connectOnMount = true,
-		heartbeatInterval = 0,
-		heartbeatMessage = "ping",
 	} = options;
 
 	// Use refs to store values that shouldn't trigger re-renders
 	const webSocketRef = useRef<WebSocket | null>(null);
 	const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-	const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
 	const reconnectAttemptsRef = useRef(0);
 	const currentReconnectIntervalRef = useRef(reconnectInterval);
 	const shouldReconnectRef = useRef(reconnect);
@@ -226,29 +212,12 @@ export function useWebSocket<TInput = any, TOutput = any>(
 			clearTimeout(reconnectTimeoutRef.current);
 			reconnectTimeoutRef.current = null;
 		}
-		if (heartbeatIntervalRef.current) {
-			clearInterval(heartbeatIntervalRef.current);
-			heartbeatIntervalRef.current = null;
-		}
+
 		if (cleanupDelayTimeoutRef.current) {
 			clearTimeout(cleanupDelayTimeoutRef.current);
 			cleanupDelayTimeoutRef.current = null;
 		}
 	}, []);
-
-	// Start heartbeat
-	const startHeartbeat = useCallback(() => {
-		if (
-			heartbeatInterval > 0 &&
-			webSocketRef.current?.readyState === WebSocket.OPEN
-		) {
-			heartbeatIntervalRef.current = setInterval(() => {
-				if (webSocketRef.current?.readyState === WebSocket.OPEN) {
-					webSocketRef.current.send(heartbeatMessage);
-				}
-			}, heartbeatInterval);
-		}
-	}, [heartbeatInterval, heartbeatMessage]);
 
 	// Cleanup WebSocket
 	const cleanup = useCallback(() => {
@@ -305,7 +274,7 @@ export function useWebSocket<TInput = any, TOutput = any>(
 				reconnectAttemptsRef.current = 0;
 				currentReconnectIntervalRef.current = reconnectInterval;
 				setReconnectAttempts(0);
-				startHeartbeat();
+
 				onOpenRef.current?.(event);
 			};
 
@@ -370,7 +339,6 @@ export function useWebSocket<TInput = any, TOutput = any>(
 		reconnectBackoffMultiplier,
 		cleanup,
 		clearTimers,
-		startHeartbeat,
 	]);
 
 	// Disconnect from WebSocket
