@@ -110,12 +110,12 @@ const userProfileService = new Service("UserProfile")
 
 ### Procedure Types
 
-Zynapse supports four procedure types:
+Zynapse supports four procedure types, each using different HTTP methods and transport mechanisms:
 
-1. **QUERY**: Used for read operations that retrieve data without side effects
-2. **MUTATION**: Used for operations that modify data or cause side effects
-3. **SUBSCRIPTION**: Used for long-lived connections where the server sends updates to the client over time
-4. **BIDIRECTIONAL**: Used for full-duplex communication where both client and server can send messages at any time
+1. **QUERY**: Used for read operations that retrieve data without side effects (uses HTTP GET)
+2. **MUTATION**: Used for operations that modify data or cause side effects (uses HTTP POST)
+3. **SUBSCRIPTION**: Used for long-lived connections where the server sends updates to the client over time (uses Server-Sent Events)
+4. **BIDIRECTIONAL**: Used for full-duplex communication where both client and server can send messages at any time (uses WebSocket)
 
 ```typescript
 // Example subscription procedure
@@ -393,6 +393,140 @@ The schema builder provides full type safety:
 2. Input and output schemas generate TypeScript types
 3. When implementing the server, you get type checking for all handlers
 
+## Client-Side Code Generation
+
+Zynapse automatically generates type-safe React hooks from your API schema for frontend consumption. The code generator can be run using the CLI:
+
+```bash
+zynapse-cli -I ./backend/src/api.schema.ts -O ./frontend/src/_generated
+```
+
+### Generated Hooks by Procedure Type
+
+For each procedure in your schema, Zynapse generates React hooks that integrate with TanStack Query:
+
+| Procedure Type | Generated Hook Pattern | Integration |
+|---------------|----------------------|-------------|
+| QUERY | `use[Service][Procedure]Query` | TanStack Query's `useQuery` |
+| MUTATION | `use[Service][Procedure]Mutation` | TanStack Query's `useMutation` |
+| SUBSCRIPTION | `use[Service][Procedure]Subscription` | Custom SSE hook |
+| BIDIRECTIONAL | `use[Service][Procedure]Bidirectional` | Custom WebSocket hook |
+
+### Example Generated Hooks
+
+Given this schema:
+
+```typescript
+const todoService = new Service("Todo")
+  .addProcedure({
+    method: "QUERY",
+    name: "GetTodos",
+    input: z.object({ limit: z.number() }),
+    output: z.object({ todos: z.array(z.any()) })
+  })
+  .addProcedure({
+    method: "MUTATION",
+    name: "CreateTodo",
+    input: z.object({ title: z.string() }),
+    output: z.object({ id: z.string() })
+  });
+```
+
+The following hooks are generated:
+
+**QUERY Hook (uses HTTP GET):**
+```typescript
+import { useTodoGetTodosQuery } from "./_generated/todo.service";
+
+function TodoList() {
+  const { data, isLoading, error } = useTodoGetTodosQuery(
+    { limit: 10 },
+    { enabled: true } // TanStack Query options
+  );
+
+  return <div>{data?.todos.map(todo => ...)}</div>;
+}
+```
+
+**MUTATION Hook (uses HTTP POST):**
+```typescript
+import { useTodoCreateTodoMutation } from "./_generated/todo.service";
+
+function CreateTodoForm() {
+  const createTodo = useTodoCreateTodoMutation({
+    onSuccess: (data) => {
+      console.log("Created:", data.id);
+    }
+  });
+
+  return (
+    <button onClick={() => createTodo.mutate({ title: "New Todo" })}>
+      Create
+    </button>
+  );
+}
+```
+
+**SUBSCRIPTION Hook (uses Server-Sent Events):**
+```typescript
+import { useTodoWatchTodosSubscription } from "./_generated/todo.service";
+
+function LiveTodoList() {
+  const { messages, isConnected } = useTodoWatchTodosSubscription(
+    { filter: "all" },
+    {
+      onError: (error) => console.error(error),
+      onClose: () => console.log("Connection closed")
+    }
+  );
+
+  return <div>{messages.map(msg => ...)}</div>;
+}
+```
+
+**BIDIRECTIONAL Hook (uses WebSocket):**
+```typescript
+import { useTodoCollaborateTodoBidirectional } from "./_generated/todo.service";
+
+function CollaborativeTodo() {
+  const ws = useTodoCollaborateTodoBidirectional({
+    connectOnMount: true,
+    onMessage: (data) => console.log(data)
+  });
+
+  const handleEdit = () => {
+    ws.sendMessage({
+      action: "edit",
+      todoId: "123",
+      data: { title: "Updated" }
+    });
+  };
+
+  return <button onClick={handleEdit}>Edit</button>;
+}
+```
+
+### Type Safety in Generated Code
+
+All generated hooks are fully type-safe:
+
+1. Input parameters are typed according to the input schema
+2. Output data is typed according to the output schema
+3. TypeScript will catch any mismatches at compile time
+4. Full autocomplete support in your IDE
+
+### Generated Files Structure
+
+For each service in your schema, a separate `.service.ts` file is generated:
+
+```
+_generated/
+├── todo.service.ts       # All Todo service hooks
+├── user.service.ts       # All User service hooks
+├── auth.service.ts       # All Auth service hooks
+└── useWebsocket.ts       # Shared WebSocket utilities
+```
+
 ## Designing a Well-Structured Schema
 
 A well-structured API schema requires thoughtful design. Here are some tips:
@@ -502,7 +636,7 @@ Your schema is both documentation and validation all in one. The types you defin
    - Rate limiting information
    - Required permissions
    - Side effects
-7. **Use QUERY/MUTATION/SUBSCRIPTION/BIDIRECTIONAL correctly** - QUERY for read operations, MUTATION for operations that modify data, SUBSCRIPTION for server-push updates, BIDIRECTIONAL for full-duplex two-way communication
+7. **Use QUERY/MUTATION/SUBSCRIPTION/BIDIRECTIONAL correctly** - QUERY for read operations (HTTP GET), MUTATION for operations that modify data (HTTP POST), SUBSCRIPTION for server-push updates (SSE), BIDIRECTIONAL for full-duplex two-way communication (WebSocket)
 8. **Define error responses** - Document all possible error responses with their conditions
 9. **Detail cookie-based authentication** - Document session cookies, expiration, refresh logic, and security attributes
 10. **Keep schemas focused** - Avoid creating "catch-all" services or generic procedures

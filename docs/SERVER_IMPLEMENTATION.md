@@ -10,6 +10,40 @@ Zynapse follows a schema-first approach where the API schema is already defined 
 2. Implement procedure handlers for each defined procedure
 3. Create a server instance and start it
 
+## API Endpoint Structure
+
+Zynapse uses a RESTful URL structure for all procedures:
+
+```
+/_api/:service/:procedure
+```
+
+For example:
+- `/_api/Users/GetUserById` - Calls the GetUserById procedure in the Users service
+- `/_api/Todos/CreateTodo` - Calls the CreateTodo procedure in the Todos service
+
+### HTTP Methods by Procedure Type
+
+Different procedure types use different HTTP methods:
+
+| Procedure Type | HTTP Method | Data Location | Transport |
+|---------------|-------------|---------------|-----------|
+| QUERY | GET | URL query parameters | HTTP |
+| MUTATION | POST | Request body | HTTP |
+| SUBSCRIPTION | GET (upgrade) | URL query parameters | Server-Sent Events |
+| BIDIRECTIONAL | GET (upgrade) | WebSocket messages | WebSocket |
+
+**QUERY Example:**
+```
+GET /_api/Users/GetUserById?payload={"id":"123"}
+```
+
+**MUTATION Example:**
+```
+POST /_api/Todos/CreateTodo
+Body: {"title":"New Todo"}
+```
+
 ## Implementing Server Logic
 
 ### Step 1: Import Dependencies and Schema
@@ -69,11 +103,11 @@ server.start();
 
 ### Procedure Types
 
-Zynapse supports four types of procedure methods:
+Zynapse supports four types of procedure methods with different transport mechanisms:
 
-1. **QUERY** - For retrieving data (read operations)
-2. **MUTATION** - For modifying data (write operations)
-3. **SUBSCRIPTION** - For streaming data from server to client with real-time updates
+1. **QUERY** - For retrieving data (read operations, uses HTTP GET with parameters in URL)
+2. **MUTATION** - For modifying data (write operations, uses HTTP POST with data in request body)
+3. **SUBSCRIPTION** - For streaming data from server to client with real-time updates (uses Server-Sent Events)
 4. **BIDIRECTIONAL** - For full two-way WebSocket communication between server and client
 
 ### Type-Safe Implementation
