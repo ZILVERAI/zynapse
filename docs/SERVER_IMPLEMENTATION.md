@@ -137,15 +137,51 @@ All procedure handlers receive the original HTTP Request as the second parameter
   // Access request properties
   const cookies = request.cookies; // Direct access to cookies
   const userAgent = request.headers.get("user-agent");
-  
+
+  // Access custom headers sent from the client
+  const authToken = request.headers.get("authorization");
+  const apiKey = request.headers.get("x-api-key");
+
   // Access context data set by middleware
   const currentUser = context.get("user");
-  
+
   // Implementation logic...
 })
 ```
 
 The context object is passed from middleware to procedure handlers, allowing you to share data between them.
+
+### Custom Headers from Client
+
+Client-generated hooks for QUERY and MUTATION procedures can pass custom headers that are accessible in your server handlers via `request.headers.get()`. This is commonly used for:
+
+- **Authentication**: Bearer tokens, API keys, session tokens
+- **Request Metadata**: Correlation IDs, trace IDs, client versions
+- **Content Negotiation**: Accept headers, language preferences
+- **Custom Business Logic**: Tenant IDs, feature flags, regional settings
+
+**Example:**
+
+```typescript
+// Client side
+const { data } = useTodoGetTodosQuery(
+  { limit: 10 },
+  {},
+  { "Authorization": "Bearer token123", "X-Tenant-ID": "tenant-456" }
+);
+
+// Server side
+.registerProcedureImplementation("GetTodos", async (input, request) => {
+  const authToken = request.headers.get("authorization"); // "Bearer token123"
+  const tenantId = request.headers.get("x-tenant-id"); // "tenant-456"
+
+  // Verify authentication and filter by tenant
+  const user = await verifyToken(authToken);
+  const todos = await db.todos.findByTenant(tenantId);
+
+  return { todos };
+})
+```
 
 ### Error Handling
 

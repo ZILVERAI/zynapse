@@ -45,7 +45,7 @@ async function mutationProcedureCodeGen(
 
 	let buff: string = `export ${stringifiedAlias}\nexport ${zodCode}\nexport function use${parentService.name}${proc.name}Mutation`;
 
-	buff += `(extraOptions?: Omit<UseMutationOptions<${outputTypeIdentifier}, Error, z.infer<typeof ${inputAliasIdentifier}>, unknown>, "mutationFn">) {
+	buff += `(extraOptions?: Omit<UseMutationOptions<${outputTypeIdentifier}, Error, z.infer<typeof ${inputAliasIdentifier}>, unknown>, "mutationFn">, headers?: HeadersInit) {
 /*${proc.description}*/
 return useMutation({
 ...extraOptions,
@@ -56,10 +56,11 @@ return useMutation({
 			throw new Error(validationResult.error.message)
 		}
 
-		
+
 		const response = await fetch("/_api/${parentService.name}/${proc.name}",{
 			method: "POST",
 			body: JSON.stringify(validationResult.data),
+			headers: headers,
 		})
 
 						if (!response.ok) {
@@ -260,7 +261,7 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 
 	const extraOptionsType = `Omit<UseQueryOptions<${outputTypeIdentifier}, Error, ${outputTypeIdentifier}, Array<string | z.infer<typeof ${inputIdentifier}>>>, "queryKey" | "queryFn">`;
 
-	buff += `(args: z.infer<typeof ${inputIdentifier}>, extraOptions?: ${extraOptionsType})`;
+	buff += `(args: z.infer<typeof ${inputIdentifier}>, extraOptions?: ${extraOptionsType}, headers?: HeadersInit)`;
 	// Actual logic of the buffer here
 	buff += "{\n";
 	buff += `/*${proc.description}*/\n`;
@@ -268,7 +269,7 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 	// Form the keys array with args included
 	const staticKeys = [parentService.name, proc.name];
 
-	buff += `\treturn useQuery({queryKey: [${staticKeys.map((k) => `"${k}"`).join(", ")}, args], 
+	buff += `\treturn useQuery({queryKey: [${staticKeys.map((k) => `"${k}"`).join(", ")}, args],
 		queryFn: async () => {
 			const validationResult = await ${inputIdentifier}.safeParseAsync(args)
 			if (validationResult.error) {
@@ -285,6 +286,7 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 
 			const response = await fetch(targetURL, {
 				method: "GET",
+				headers: headers,
 				})
 
 				if (!response.ok) {

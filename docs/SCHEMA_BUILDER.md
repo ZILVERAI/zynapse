@@ -441,7 +441,8 @@ import { useTodoGetTodosQuery } from "./_generated/todo.service";
 function TodoList() {
   const { data, isLoading, error } = useTodoGetTodosQuery(
     { limit: 10 },
-    { enabled: true } // TanStack Query options
+    { enabled: true }, // TanStack Query options
+    { "Authorization": "Bearer token123" } // Optional headers
   );
 
   return <div>{data?.todos.map(todo => ...)}</div>;
@@ -453,11 +454,14 @@ function TodoList() {
 import { useTodoCreateTodoMutation } from "./_generated/todo.service";
 
 function CreateTodoForm() {
-  const createTodo = useTodoCreateTodoMutation({
-    onSuccess: (data) => {
-      console.log("Created:", data.id);
-    }
-  });
+  const createTodo = useTodoCreateTodoMutation(
+    {
+      onSuccess: (data) => {
+        console.log("Created:", data.id);
+      }
+    },
+    { "Authorization": "Bearer token123" } // Optional headers
+  );
 
   return (
     <button onClick={() => createTodo.mutate({ title: "New Todo" })}>
@@ -514,6 +518,42 @@ All generated hooks are fully type-safe:
 2. Output data is typed according to the output schema
 3. TypeScript will catch any mismatches at compile time
 4. Full autocomplete support in your IDE
+
+### Custom Headers in QUERY and MUTATION
+
+Both QUERY and MUTATION hooks accept an optional `headers` parameter to customize HTTP request headers:
+
+```typescript
+// QUERY with custom headers
+const { data } = useTodoGetTodosQuery(
+  { limit: 10 },
+  { enabled: true },
+  {
+    "Authorization": "Bearer token123",
+    "X-Custom-Header": "custom-value",
+    "Content-Type": "application/json"
+  }
+);
+
+// MUTATION with custom headers
+const createTodo = useTodoCreateTodoMutation(
+  { onSuccess: (data) => console.log(data) },
+  {
+    "Authorization": "Bearer token123",
+    "X-API-Key": "secret-key"
+  }
+);
+```
+
+**Common Use Cases for Custom Headers:**
+
+1. **Authentication**: Pass bearer tokens, API keys, or session identifiers
+2. **Content Negotiation**: Specify accept types or content encoding
+3. **Request Metadata**: Include tracking IDs, correlation IDs, or client info
+4. **Rate Limiting**: Send rate limit bypass tokens or quotas
+5. **Custom Business Logic**: Pass tenant IDs, feature flags, or regional settings
+
+**Note**: Headers for SUBSCRIPTION and BIDIRECTIONAL procedures should be handled differently as they use long-lived connections (SSE and WebSocket respectively). For these types, authentication should typically be handled during the initial connection establishment or via URL parameters.
 
 ### Generated Files Structure
 

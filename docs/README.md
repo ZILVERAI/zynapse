@@ -58,6 +58,13 @@ Use in your components:
 ```typescript
 const { data } = useTodoGetTodosQuery({ limit: 10 });
 const createTodo = useTodoCreateTodoMutation();
+
+// With custom headers for authentication
+const { data } = useTodoGetTodosQuery(
+  { limit: 10 },
+  {},
+  { "Authorization": "Bearer token123" }
+);
 ```
 
 ## Documentation Overview
@@ -214,6 +221,7 @@ Check out the [ZilverProjectTemplate](https://github.com/your-repo/ZilverProject
 3. **Real-time Support** - Built-in support for SSE and WebSocket
 4. **Developer Experience** - Full autocomplete and compile-time validation
 5. **Productivity** - Automatic code generation eliminates boilerplate
+6. **Flexible Authentication** - Custom headers support for QUERY and MUTATION requests
 
 ## Contributing
 
