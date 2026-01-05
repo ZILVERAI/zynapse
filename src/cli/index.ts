@@ -3,7 +3,15 @@
 import path from "path";
 import { parseArgs } from "util";
 import { GenerateCode } from "../schema/client_side";
-import { existsSync, readFile, readdir, readdirSync, rm } from "fs";
+import { existsSync, readFile, readdir, readdirSync, readFileSync } from "fs";
+import { rm } from "fs/promises";
+import { fileURLToPath } from "url";
+
+// Read the WebSocket template file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const templatePath = path.join(__dirname, "../schema/useWebSocket.ts");
+const useWebsocketTemplate = readFileSync(templatePath, "utf-8");
 
 const {
 	values: { inputFile, outputFolder },
@@ -37,15 +45,23 @@ const oldFilesDirectory = path.join(process.cwd(), outputFolder);
 const files = readdirSync(oldFilesDirectory);
 for (const file of files) {
 	const toDelete = path.join(oldFilesDirectory, file);
-	rm(toDelete, (err) => {
-		if (err) {
-			console.log(`Error con deleting file ${file}, ${err}`);
-		} else {
-			console.log("Successfully deleted", file);
-		}
-	});
+	try {
+		await rm(toDelete, {
+			maxRetries: 3,
+			recursive: true,
+			force: true,
+		});
+		console.log(`${toDelete} deleted`);
+	} catch (e) {
+		console.error("Fialed at deleting file", e);
+	}
 }
 
+// First, update the websocket lib.
+const wsFileName = path.join(process.cwd(), outputFolder, "useWebsocket.ts");
+const wsFHandle = Bun.file(wsFileName);
+const bytes = await wsFHandle.write(useWebsocketTemplate);
+console.log(`Websocket lib updated with ${bytes} at ${wsFileName}`);
 // TODO: Add some sort of validation to make sure the mentioned file is actually a schema
 
 const services_buffers = await GenerateCode(file);

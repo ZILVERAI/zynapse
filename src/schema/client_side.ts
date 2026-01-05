@@ -109,98 +109,23 @@ async function bidirectionalProcedureCodeGen(
 	});
 
 	let buff: string = `export ${schema}\nexport ${stringifiedAlias}\n\nexport function use${parentService.name}${proc.name}Bidirectional`;
-	buff += `(active: boolean = true,extraOptions?: {
-	onError?: (errorMessage: string) => void;
-	onClose?: () => void;
-})`;
+	buff += `(options: UseWebSocketOptions = {}): UseWebSocketReturn<z.infer<typeof ${inputIdentifier}>, ${outputTypeIdentifier}>`;
 	buff += "{\n";
 	buff += `/*${proc.description}*/\n`;
 
-	// Initial setup of state.
-	buff += `const socketRef = useRef<WebSocket>();\n`;
-	buff += `const [messages, setMessages] = useState<Array<${outputTypeIdentifier}>>([]);\n`;
-	buff += `const [isConnected, setIsConnected] = useState<boolean>(false);\n`;
-
-	// Avoid re-render on callback change.
-	buff += `
-const onErrorRef = useRef(extraOptions?.onError);
-const onCloseRef = useRef(extraOptions?.onClose);
-
-useEffect(() => {
-    onErrorRef.current = extraOptions?.onError;
-    onCloseRef.current = extraOptions?.onClose;
-}, [extraOptions]);\n`;
-
-	// Send function
-	buff += `
-const send = useCallback((data: z.infer<typeof ${inputIdentifier}>) => {
-	if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-		socketRef.current.send(JSON.stringify(data));
-	}
-}, []);\n`;
-
 	// Use effect main logic.
-	buff += `useEffect(() => {
-		if (socketRef.current) {
-			return;
-		}
-
-		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-		const targetURL = new URL(\`\${protocol}//\${window.location.host}/_api\`);
-		const fullPayload = {
-			service: "${parentService.name}",
-			procedure: "${proc.name}",
-			data: {}
-		};
-		const stringifiedArguments = JSON.stringify(fullPayload);
-		const encodedArguments = encodeURIComponent(stringifiedArguments);
-		targetURL.searchParams.set("payload", encodedArguments);
-
-		const socket = new WebSocket(targetURL);
-		socketRef.current = socket;
-
-		socket.addEventListener("open", () => {
-			setIsConnected(true);
-		});
-
-		socket.addEventListener("error", () => {
-			if (onErrorRef.current) {
-				onErrorRef.current("WebSocket connection error.");
-			}
-			setIsConnected(false);
-		});
-
-		socket.addEventListener("message", (ev) => {
-			try {
-				const data = JSON.parse(ev.data);
-				setMessages((prev) => [...prev, data]);
-			} catch {
-				if (onErrorRef.current) {
-					onErrorRef.current("Failed to decode data");
-				}
-			}
-		});
-
-		socket.addEventListener("close", () => {
-			if (onCloseRef.current) {
-				onCloseRef.current();
-			}
-			setIsConnected(false);
-		});
-
-		return () => {
-			socket.close();
-			socketRef.current = undefined;
-			setIsConnected(false);
-		};
-	}, [active]);
-
-
-return {
-	messages,
-	isConnected,
-	send,
-};
+	buff += `
+	    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const targetURL = new URL(\`\${protocol}//\${window.location.host}/_api\`);
+    const fullPayload = {
+      service: "Greeting",
+      procedure: "echo",
+      data: {},
+    };
+    const stringifiedArguments = JSON.stringify(fullPayload);
+    const encodedArguments = encodeURIComponent(stringifiedArguments);
+    targetURL.searchParams.set("payload", encodedArguments);
+	return useWebSocket<z.infer<typeof ${inputIdentifier}>, ${outputTypeIdentifier}>(targetURL.href,options);
 }
 `;
 
@@ -441,7 +366,7 @@ async function getServiceCode(
 	const prettified = await prettier.format(code, { parser: "babel-ts" });
 	return {
 		filename: service.name.toLowerCase() + ".service.ts",
-		code: code,
+		code: prettified,
 	};
 }
 type SchemaCodes = Array<ServiceCode>;
@@ -459,12 +384,14 @@ export async function GenerateCode(schema: APISchema): Promise<SchemaCodes> {
 		}
 		const hasSubscription = serviceHasMethod(service, "SUBSCRIPTION");
 		const hasBidirectional = serviceHasMethod(service, "BIDIRECTIONAL");
-		if (hasSubscription || hasBidirectional) {
+		if (hasSubscription) {
 			const reactImports = ["useEffect", "useRef", "useState"];
-			if (hasBidirectional) {
-				reactImports.unshift("useCallback");
-			}
 			finalBuffer += `import { ${reactImports.join(", ")} } from "react";\n`;
+		}
+
+		if (hasBidirectional) {
+			// Import the websocket library
+			finalBuffer += `import {useWebSocket, UseWebSocketReturn, UseWebSocketOptions} from "./useWebsocket";\n`;
 		}
 
 		finalBuffer += 'import {z} from "zod"\n\n';
