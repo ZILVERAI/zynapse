@@ -41,19 +41,19 @@
     "type-safe"
   ],
   "devDependencies": {
-    "@types/bun": "^1.3.4",
-    "@typescript/native-preview": "^7.0.0-dev.20250606.1",
+    "@types/bun": "^1.3.5",
+    "@typescript/native-preview": "^7.0.0-dev.20260105.1",
     "react": "^19.2.3",
-    "typescript": "^5.7.2"
+    "typescript": "^5.9.3"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
-    "json-schema-to-zod": "^2.6.1",
-    "prettier": "^3.5.3",
-    "zod": "^3.24.3",
-    "zod-to-json-schema": "^3.24.6",
+    "json-schema-to-zod": "^2.7.0",
+    "prettier": "^3.7.4",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.1",
     "zod-to-ts": "^1.2.0"
   }
 }
