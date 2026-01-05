@@ -198,11 +198,13 @@ export class Server<SchemaT extends APISchema> {
 
 	private buildHandler() {
 		return async (
-			request: BunRequest,
+			request: BunRequest<"/api/:service/:procedure">,
 			server: Bun.Server<internalWSData<SchemaT>>,
 		) => {
 			// Only open under _api, if not, then close the connection
 			const urlObject = new URL(request.url);
+			const { service, procedure } = request.params;
+
 			if (urlObject.pathname.split("/")[1] !== "_api") {
 				console.log(
 					"[ZYNAPSE] The base url of the requested resource is invalid.",
@@ -212,62 +214,52 @@ export class Server<SchemaT extends APISchema> {
 				});
 			}
 
+			// Get the procedure definition first.
+
 			// Parse the request body
 			try {
-				let body: any;
-				if (urlObject.searchParams.has("payload")) {
-					const p = urlObject.searchParams.get("payload")!;
-					const decodedBody = decodeURIComponent(p);
-					body = JSON.parse(decodedBody);
-				} else {
-					body = await request.json();
-				}
-				const parsedBody = await RequestBodySchema.safeParseAsync(body);
-				if (parsedBody.success === false) {
-					return new Response(parsedBody.error.message, {
-						status: 400,
-					});
-				}
+				// let body: any;
+				// if (urlObject.searchParams.has("payload")) {
+				// 	const p = urlObject.searchParams.get("payload")!;
+				// 	const decodedBody = decodeURIComponent(p);
+				// 	body = JSON.parse(decodedBody);
+				// } else {
+				// 	body = await request.json();
+				// }
+				// const parsedBody = await RequestBodySchema.safeParseAsync(body);
+				// if (parsedBody.success === false) {
+				// 	return new Response(parsedBody.error.message, {
+				// 		status: 400,
+				// 	});
+				// }
 
 				// Now, lets check if we have that procedure.
-				const serviceDefinition = this.schema.services[parsedBody.data.service];
-				const implementationHandler =
-					this.implementation[parsedBody.data.service];
+				const serviceDefinition = this.schema.services[service];
+				const implementationHandler = this.implementation[service];
 				if (
 					implementationHandler === undefined ||
 					serviceDefinition === undefined
 				) {
-					console.error(
-						`[ZYNAPSE] The service ${parsedBody.data.service} doesn't exist`,
-					);
-					return new Response(
-						`The service ${parsedBody.data.service} doesn't exist`,
-						{
-							status: 404,
-						},
-					);
+					console.error(`[ZYNAPSE] The service ${service} doesn't exist`);
+					return new Response(`The service ${service} doesn't exist`, {
+						status: 404,
+					});
 				}
 
 				// Before proceding to the final execution, lets check if we have the procedure that the client is asking.
-				const procedureHandler =
-					implementationHandler[parsedBody.data.procedure];
+				const procedureHandler = implementationHandler[procedure];
 				const procedureDefinition = serviceDefinition.getProcedure(
-					parsedBody.data.procedure,
+					procedure,
 				) as Procedure<ProcedureType, z.Schema, z.Schema>;
 
 				if (
 					procedureHandler === undefined ||
 					procedureDefinition === undefined
 				) {
-					console.log(
-						`[ZYNAPSE] The procedure ${parsedBody.data.procedure} doesn't exist`,
-					);
-					return new Response(
-						`The procedure ${parsedBody.data.procedure} doesn't exist`,
-						{
-							status: 404,
-						},
-					);
+					console.log(`[ZYNAPSE] The procedure ${procedure} doesn't exist`);
+					return new Response(`The procedure ${procedure} doesn't exist`, {
+						status: 404,
+					});
 				}
 
 				const ctx: ContextType = new Map();
@@ -313,10 +305,22 @@ export class Server<SchemaT extends APISchema> {
 						return;
 					}
 					// Validate the procedure input
+
+					// Based on the type of procedure, if it is a mutation it will be included in the body, otherwise it will be a search param.
+					let rawBodyData: unknown;
+					if (procedureDefinition.method === "MUTATION") {
+						rawBodyData = await request.json();
+					} else {
+						// Check the URL param for "payload"
+						const rawPayload = urlObject.searchParams.get("payload");
+						if (!rawPayload) {
+							rawBodyData = {};
+						} else {
+							rawBodyData = JSON.parse(decodeURIComponent(rawPayload));
+						}
+					}
 					const parsedArgumentsResult =
-						await procedureDefinition.input.safeParseAsync(
-							parsedBody.data.data,
-						);
+						await procedureDefinition.input.safeParseAsync(rawBodyData);
 					if (parsedArgumentsResult.success === false) {
 						console.log(
 							`[ZYNAPSE] The input has failed the validation: ${parsedArgumentsResult.error.message}`,
@@ -418,7 +422,8 @@ export class Server<SchemaT extends APISchema> {
 			idleTimeout: 45,
 
 			routes: {
-				"/_api": handler,
+				// "/_api": handler,
+				"/_api/:service/:procedure": handler,
 				"/_api/webhook": (req) => this.handleWebhook(req),
 			},
 			websocket: {
@@ -472,13 +477,6 @@ export class Server<SchemaT extends APISchema> {
 
 					ws.data.connectionHandler.close();
 				},
-			},
-			async fetch(req) {
-				console.log(`[ZYNAPSE] Invalid request received. ${req.url}`);
-
-				return new Response(null, {
-					status: 404,
-				});
 			},
 		});
 

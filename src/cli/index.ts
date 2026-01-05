@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 import path from "path";
 import { parseArgs } from "util";
 import { GenerateCode } from "../schema/client_side";

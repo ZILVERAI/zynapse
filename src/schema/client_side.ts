@@ -57,13 +57,9 @@ return useMutation({
 		}
 
 		
-		const response = await fetch("/_api",{
+		const response = await fetch("/_api/${parentService.name}/${proc.name}",{
 			method: "POST",
-			body: JSON.stringify({
-					service: '${parentService.name}',
-					procedure: '${proc.name}',
-					data: validationResult.data
-				}),
+			body: JSON.stringify(validationResult.data),
 		})
 
 						if (!response.ok) {
@@ -116,15 +112,7 @@ async function bidirectionalProcedureCodeGen(
 	// Use effect main logic.
 	buff += `
 	    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const targetURL = new URL(\`\${protocol}//\${window.location.host}/_api\`);
-    const fullPayload = {
-      service: "Greeting",
-      procedure: "echo",
-      data: {},
-    };
-    const stringifiedArguments = JSON.stringify(fullPayload);
-    const encodedArguments = encodeURIComponent(stringifiedArguments);
-    targetURL.searchParams.set("payload", encodedArguments);
+    const targetURL = new URL(\`\${protocol}//\${window.location.host}/_api/${parentService.name}/${proc.name}\`);
 	return useWebSocket<z.infer<typeof ${inputIdentifier}>, ${outputTypeIdentifier}>(targetURL.href,options);
 }
 `;
@@ -181,13 +169,8 @@ useEffect(() => {
 			return
 		}
 
-		const targetURL = new URL("/_api", window.location.origin);
-		const fullPayload = {
-			service: "${parentService.name}",
-			procedure: "${proc.name}",
-			data: args,
-		};
-		const stringifiedArguments = JSON.stringify(fullPayload);
+		const targetURL = new URL("/_api/${parentService.name}/${proc.name}", window.location.origin);
+		const stringifiedArguments = JSON.stringify(args);
 		const encodedArguments = encodeURIComponent(stringifiedArguments);
 		targetURL.searchParams.set("payload", encodedArguments);
 
@@ -294,14 +277,14 @@ async function queryProcedureCodeGen(proc: Procedure, parentService: Service) {
 			}
 
 
-		
-			const response = await fetch('/_api', {
-				method: "POST",
-				body: JSON.stringify({
-					service: '${parentService.name}',
-					procedure: '${proc.name}',
-					data: validationResult.data
-				}),
+
+			const targetURL = new URL("/_api/${parentService.name}/${proc.name}", window.location.origin);
+			const stringifiedArguments = JSON.stringify(validationResult.data);
+			const encodedArguments = encodeURIComponent(stringifiedArguments);
+			targetURL.searchParams.set("payload", encodedArguments);
+
+			const response = await fetch(targetURL, {
+				method: "GET",
 				})
 
 				if (!response.ok) {
