@@ -91,6 +91,8 @@ export interface UseWebSocketReturn<TInput = any, TOutput = any> {
 	 */
 	lastMessage: TOutput | null;
 
+	messages: Array<TOutput>;
+
 	/**
 	 * Current connection status
 	 */
@@ -171,6 +173,8 @@ export function useWebSocket<TInput = any, TOutput = any>(
 	const isManualDisconnectRef = useRef(false);
 	const cleanupDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 	const isMountedRef = useRef(false);
+
+	const [messages, setMessages] = useState<Array<TOutput>>([]);
 
 	// Store callbacks in refs to avoid recreating WebSocket on callback changes
 	const onMessageRef = useRef(onMessage);
@@ -319,6 +323,7 @@ export function useWebSocket<TInput = any, TOutput = any>(
 							? JSON.parse(event.data)
 							: event.data;
 					setLastParsedMessage(parsed as TOutput);
+					setMessages((prev) => [...prev, parsed]);
 				} catch (error) {
 					// If parsing fails, set parsed message to null
 					setLastParsedMessage(null);
@@ -417,6 +422,7 @@ export function useWebSocket<TInput = any, TOutput = any>(
 	return {
 		sendMessage,
 		sendRawMessage,
+		messages,
 		lastRawMessage,
 		lastMessage,
 		connectionStatus,
