@@ -93,6 +93,8 @@ export interface UseWebSocketReturn<TInput = any, TOutput = any> {
 
 	messages: Array<TOutput>;
 
+	send: (message: TInput) => void;
+
 	/**
 	 * Current connection status
 	 */
@@ -422,6 +424,7 @@ export function useWebSocket<TInput = any, TOutput = any>(
 	return {
 		sendMessage,
 		sendRawMessage,
+		send: sendMessage,
 		messages,
 		lastRawMessage,
 		lastMessage,
