@@ -468,14 +468,19 @@ export class Server<SchemaT extends APISchema> {
 					}
 				},
 				close(ws) {
-					if (!ws.data.connectionHandler) {
-						console.error(
-							"Websocket doesn't have a connection handler, unable to handle close state.",
-						);
-						return;
-					}
+					try {
+						if (!ws.data.connectionHandler) {
+							console.error(
+								"Websocket doesn't have a connection handler, unable to handle close state.",
+							);
+							// ws.close(1011, "Internal error"); // Call close anyways
+							return;
+						}
 
-					ws.data.connectionHandler.close();
+						ws.data.connectionHandler.close("", false);
+					} catch (e) {
+						console.error("Error on WS close\n", e);
+					}
 				},
 			},
 		});
@@ -504,7 +509,8 @@ export class Server<SchemaT extends APISchema> {
 		}
 		console.log("[ZYNAPSE] All connections has been closed.");
 
-		await this._server.stop(true);
+		this._server.stop(true);
+		await new Promise((resolve) => setTimeout(resolve, 3000));
 		console.log("[ZYNAPSE] Server stopped");
 		process.exit(0);
 	}

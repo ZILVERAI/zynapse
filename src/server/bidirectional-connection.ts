@@ -58,9 +58,14 @@ export class BidirectionalConnection<
 		});
 	}
 
-	public async close(reason?: string) {
+	public async close(
+		reason?: string,
+		closeUnderlyingConnection: boolean = true,
+	) {
 		console.info("[ZYNAPSE] Bidirectional connection closing...");
-		this.connection.close(undefined, reason);
+		if (closeUnderlyingConnection) {
+			this.connection.close(1000, reason || "");
+		}
 		this.eventTarget.dispatchEvent(
 			new CustomEvent("close", {
 				detail: reason,
