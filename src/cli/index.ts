@@ -4,6 +4,7 @@ import { GenerateCode } from "../schema/client_side";
 import { existsSync, readFile, readdir, readdirSync, readFileSync } from "fs";
 import { rm } from "fs/promises";
 import { fileURLToPath } from "url";
+import { GenerateMobileCode } from "../schema/client_side_mobile";
 
 // Read the WebSocket template file
 const __filename = fileURLToPath(import.meta.url);
@@ -12,7 +13,7 @@ const templatePath = path.join(__dirname, "../schema/useWebSocket.ts");
 const useWebsocketTemplate = readFileSync(templatePath, "utf-8");
 
 const {
-	values: { inputFile, outputFolder },
+	values: { inputFile, outputFolder, mobile },
 } = parseArgs({
 	args: Bun.argv || process.argv,
 	allowPositionals: true,
@@ -24,6 +25,10 @@ const {
 		outputFolder: {
 			type: "string",
 			short: "O",
+		},
+		mobile: {
+			type: "boolean",
+			short: "M",
 		},
 	},
 });
@@ -62,7 +67,13 @@ const bytes = await wsFHandle.write(useWebsocketTemplate);
 console.log(`Websocket lib updated with ${bytes} at ${wsFileName}`);
 // TODO: Add some sort of validation to make sure the mentioned file is actually a schema
 
-const services_buffers = await GenerateCode(file);
+let fnToCall = GenerateCode;
+if (mobile) {
+	console.info("Generating code for mobile");
+	fnToCall = GenerateMobileCode;
+}
+
+const services_buffers = await fnToCall(file);
 
 let total_bytes = 0;
 for (const service_buf of services_buffers) {
