@@ -10,7 +10,10 @@ import { GenerateMobileCode } from "../schema/client_side_mobile";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const templatePath = path.join(__dirname, "../schema/useWebSocket.ts");
-const useWebsocketTemplate = readFileSync(templatePath, "utf-8");
+const mobileWsTemplatePath = path.join(
+	__dirname,
+	"../schema/useWebsocketMobile.ts",
+);
 
 const {
 	values: { inputFile, outputFolder, mobile },
@@ -37,6 +40,12 @@ if (!inputFile || !outputFolder) {
 	throw new Error("One or more arguments are missing");
 }
 
+let useWebsocketTemplate = readFileSync(templatePath, "utf-8");
+
+if (mobile) {
+	useWebsocketTemplate = readFileSync(mobileWsTemplatePath, "utf-8");
+}
+
 console.log("Code gen started", process.cwd());
 // Find the file and dynamically import it
 
@@ -61,10 +70,14 @@ for (const file of files) {
 }
 
 // First, update the websocket lib.
-const wsFileName = path.join(process.cwd(), outputFolder, "useWebsocket.ts");
-const wsFHandle = Bun.file(wsFileName);
+let wsFileName = "useWebsocket.ts";
+if (mobile) {
+	wsFileName = "useWebsocketMobile.ts";
+}
+const wsFullFileName = path.join(process.cwd(), outputFolder, wsFileName);
+const wsFHandle = Bun.file(wsFullFileName);
 const bytes = await wsFHandle.write(useWebsocketTemplate);
-console.log(`Websocket lib updated with ${bytes} at ${wsFileName}`);
+console.log(`Websocket lib updated with ${bytes} at ${wsFullFileName}`);
 // TODO: Add some sort of validation to make sure the mentioned file is actually a schema
 
 let fnToCall = GenerateCode;

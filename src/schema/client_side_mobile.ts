@@ -352,14 +352,22 @@ async function getServiceCode(
 }
 type SchemaCodes = Array<ServiceCode>;
 
-export async function GenerateMobileCode(schema: APISchema): Promise<SchemaCodes> {
+export async function GenerateMobileCode(
+	schema: APISchema,
+): Promise<SchemaCodes> {
 	const out: SchemaCodes = [];
 
 	for (const [key, service] of Object.entries(schema.services)) {
 		let finalBuffer: string = ``;
 
-		// Config import for base URL
-		finalBuffer += `import { getApiBaseUrl } from "./apiConfig";\n`;
+		// Helper function to get API base URL from env
+		finalBuffer += `const getApiBaseUrl = () => {
+	const baseUrl = process.env.EXPO_PUBLIC_API_URL;
+	if (!baseUrl) {
+		throw new Error("EXPO_PUBLIC_API_URL environment variable is not set");
+	}
+	return baseUrl.replace(/\\/$/, "");
+};\n\n`;
 
 		if (serviceHasMethod(service, "MUTATION")) {
 			finalBuffer += `import {useMutation, UseMutationOptions} from "@tanstack/react-query";\n`;
@@ -390,177 +398,4 @@ export async function GenerateMobileCode(schema: APISchema): Promise<SchemaCodes
 	}
 
 	return out;
-}
-
-// Generate the apiConfig helper file content
-export function generateApiConfigFile(): ServiceCode {
-	const code = `
-let apiBaseUrl: string = "";
-
-/**
- * Set the base URL for all API requests.
- * Call this during app initialization with your backend URL.
- *
- * @example
- * // In your App.tsx or initialization file:
- * import { setApiBaseUrl } from "./generated/apiConfig";
- *
- * // For development
- * setApiBaseUrl("http://192.168.1.100:3000");
- *
- * // For production
- * setApiBaseUrl("https://api.yourapp.com");
- */
-export function setApiBaseUrl(url: string): void {
-	// Remove trailing slash if present
-	apiBaseUrl = url.replace(/\\/$/, "");
-}
-
-/**
- * Get the current API base URL.
- * Throws an error if the base URL hasn't been configured.
- */
-export function getApiBaseUrl(): string {
-	if (!apiBaseUrl) {
-		throw new Error(
-			"API base URL not configured. Call setApiBaseUrl() during app initialization."
-		);
-	}
-	return apiBaseUrl;
-}
-`;
-
-	return {
-		filename: "apiConfig.ts",
-		code: code.trim(),
-	};
-}
-
-// Generate the useWebsocketMobile hook content
-export function generateWebSocketMobileHook(): ServiceCode {
-	const code = `
-import { useCallback, useEffect, useRef, useState } from "react";
-
-export interface UseWebSocketOptions {
-	onOpen?: () => void;
-	onClose?: () => void;
-	onError?: (error: Event) => void;
-	reconnect?: boolean;
-	reconnectInterval?: number;
-	reconnectAttempts?: number;
-}
-
-export interface UseWebSocketReturn<TInput, TOutput> {
-	sendMessage: (message: TInput) => void;
-	lastMessage: TOutput | null;
-	messages: TOutput[];
-	isConnected: boolean;
-	reconnect: () => void;
-}
-
-export function useWebSocket<TInput, TOutput>(
-	url: string,
-	options: UseWebSocketOptions = {}
-): UseWebSocketReturn<TInput, TOutput> {
-	const {
-		onOpen,
-		onClose,
-		onError,
-		reconnect: shouldReconnect = true,
-		reconnectInterval = 3000,
-		reconnectAttempts = 5,
-	} = options;
-
-	const [isConnected, setIsConnected] = useState(false);
-	const [lastMessage, setLastMessage] = useState<TOutput | null>(null);
-	const [messages, setMessages] = useState<TOutput[]>([]);
-
-	const wsRef = useRef<WebSocket | null>(null);
-	const reconnectCountRef = useRef(0);
-	const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-	const connect = useCallback(() => {
-		if (wsRef.current?.readyState === WebSocket.OPEN) {
-			return;
-		}
-
-		const ws = new WebSocket(url);
-		wsRef.current = ws;
-
-		ws.onopen = () => {
-			setIsConnected(true);
-			reconnectCountRef.current = 0;
-			onOpen?.();
-		};
-
-		ws.onclose = () => {
-			setIsConnected(false);
-			onClose?.();
-
-			if (shouldReconnect && reconnectCountRef.current < reconnectAttempts) {
-				reconnectTimeoutRef.current = setTimeout(() => {
-					reconnectCountRef.current++;
-					connect();
-				}, reconnectInterval);
-			}
-		};
-
-		ws.onerror = (error) => {
-			onError?.(error);
-		};
-
-		ws.onmessage = (event) => {
-			try {
-				const data = JSON.parse(event.data) as TOutput;
-				setLastMessage(data);
-				setMessages((prev) => [...prev, data]);
-			} catch (e) {
-				console.error("Failed to parse WebSocket message:", e);
-			}
-		};
-	}, [url, onOpen, onClose, onError, shouldReconnect, reconnectInterval, reconnectAttempts]);
-
-	const sendMessage = useCallback((message: TInput) => {
-		if (wsRef.current?.readyState === WebSocket.OPEN) {
-			wsRef.current.send(JSON.stringify(message));
-		} else {
-			console.warn("WebSocket is not connected. Message not sent.");
-		}
-	}, []);
-
-	const manualReconnect = useCallback(() => {
-		reconnectCountRef.current = 0;
-		if (wsRef.current) {
-			wsRef.current.close();
-		}
-		connect();
-	}, [connect]);
-
-	useEffect(() => {
-		connect();
-
-		return () => {
-			if (reconnectTimeoutRef.current) {
-				clearTimeout(reconnectTimeoutRef.current);
-			}
-			if (wsRef.current) {
-				wsRef.current.close();
-			}
-		};
-	}, [connect]);
-
-	return {
-		sendMessage,
-		lastMessage,
-		messages,
-		isConnected,
-		reconnect: manualReconnect,
-	};
-}
-`;
-
-	return {
-		filename: "useWebsocketMobile.ts",
-		code: code.trim(),
-	};
 }
