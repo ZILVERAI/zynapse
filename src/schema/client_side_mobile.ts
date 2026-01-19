@@ -194,8 +194,12 @@ useEffect(() => {
 		);
 
 		source.addEventListener(
-			"content",
-			(ev: MessageEvent) => {
+			"message",
+			(ev) => {
+			if (!ev.data) {
+				console.error("Message with no data received")
+				return
+			}
 				try {
 				const data = JSON.parse(ev.data)
 				setMessages((prev) => [...prev, data]);
