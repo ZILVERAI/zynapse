@@ -36,7 +36,7 @@ export function useWebSocket<TInput, TOutput>(
 
 	const wsRef = useRef<WebSocket | null>(null);
 	const reconnectCountRef = useRef(0);
-	const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	const reconnectTimeoutRef = useRef<NodeJS.Timeout | number | null>(null);
 
 	const connect = useCallback(() => {
 		if (wsRef.current?.readyState === WebSocket.OPEN) {
